@@ -1,0 +1,4 @@
+http://www.w3schools.com/graphics/tryit.asp?filename=trysvg_rect4
+http://package.elm-lang.org/packages/chendrix/elm-matrix/3.1.2/Matrix#Location
+https://ohanhi.github.io/base-for-game-elm-017.html
+http://elm-lang.org/blog/making-pong
