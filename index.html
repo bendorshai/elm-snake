@@ -9732,9 +9732,13 @@ var _user$project$Types$Definition = F6(
 	function (a, b, c, d, e, f) {
 		return {offsetX: a, offsetY: b, margin: c, rectSize: d, radius: e, len: f};
 	});
-var _user$project$Types$Model = F5(
-	function (a, b, c, d, e) {
-		return {definition: a, matrix: b, snake: c, apple: d, status: e};
+var _user$project$Types$Model = F6(
+	function (a, b, c, d, e, f) {
+		return {definition: a, matrix: b, snake: c, apple: d, status: e, winds: f};
+	});
+var _user$project$Types$Winds = F2(
+	function (a, b) {
+		return {timeMultiplier: a, noiseMatrix: b};
 	});
 var _user$project$Types$AppleElement = {ctor: 'AppleElement'};
 var _user$project$Types$SnakeElement = {ctor: 'SnakeElement'};
@@ -9880,7 +9884,7 @@ var _user$project$State$subscriptions = function (model) {
 				_0: _elm_lang$keyboard$Keyboard$ups(_user$project$Types$KeyUp),
 				_1: {
 					ctor: '::',
-					_0: A2(_elm_lang$core$Time$every, _elm_lang$core$Time$second / 4, _user$project$Types$Tick),
+					_0: _elm_lang$core$Native_Utils.eq(model.status, _user$project$Types$Play) ? A2(_elm_lang$core$Time$every, _elm_lang$core$Time$second * model.winds.timeMultiplier, _user$project$Types$Tick) : _elm_lang$core$Platform_Sub$none,
 					_1: {ctor: '[]'}
 				}
 			}
@@ -9904,6 +9908,14 @@ var _user$project$State$stepGameStatus = function (model) {
 		reasonsToDie);
 	return shouldDie ? _user$project$Types$GameOver : _user$project$Types$Play;
 };
+var _user$project$State$stepWinds = F2(
+	function (model, ate) {
+		var multiplier = ate ? 0.99 : 1;
+		var winds = model.winds;
+		return _elm_lang$core$Native_Utils.update(
+			winds,
+			{timeMultiplier: model.winds.timeMultiplier * multiplier});
+	});
 var _user$project$State$stepSnake = function (model) {
 	var snake = model.snake;
 	var body = snake.body;
@@ -9973,14 +9985,28 @@ var _user$project$State$step = function (model) {
 		_elm_lang$core$List$length(model.snake.body),
 		_elm_lang$core$List$length(newSnake.body)) < 0;
 	var apple = ate ? _elm_lang$core$Maybe$Nothing : model.apple;
+	var newWinds = A2(_user$project$State$stepWinds, model, ate);
 	return {
 		ctor: '_Tuple2',
 		_0: _elm_lang$core$Native_Utils.update(
 			model,
-			{snake: newSnake, matrix: newMatrix, status: newStatus, apple: apple}),
+			{snake: newSnake, matrix: newMatrix, status: newStatus, apple: apple, winds: newWinds}),
 		_1: A2(_user$project$State$stepCommand, model, ate)
 	};
 };
+var _user$project$State$initWinds = F3(
+	function (timeDiv, width, heigth) {
+		return A2(
+			_user$project$Types$Winds,
+			timeDiv,
+			A3(
+				_chendrix$elm_matrix$Matrix$matrix,
+				width,
+				heigth,
+				function (location) {
+					return 0.0;
+				}));
+	});
 var _user$project$State$initApple = F2(
 	function (x, y) {
 		return _user$project$Types$Apple(
@@ -9998,7 +10024,7 @@ var _user$project$State$initSnake = F2(
 			trail: A2(_chendrix$elm_matrix$Matrix$loc, x, y)
 		};
 	});
-var _user$project$State$initDefinition = {offsetX: 25, offsetY: 25, margin: 10, rectSize: 25, radius: 10, len: 12};
+var _user$project$State$initDefinition = {offsetX: 50, offsetY: 50, margin: 15, rectSize: 40, radius: 15, len: 12};
 var _user$project$State$initMatrix = F2(
 	function (width, height) {
 		return A3(
@@ -10015,14 +10041,15 @@ var _user$project$State$init = function () {
 	var p = (l / 2) | 0;
 	return {
 		ctor: '_Tuple2',
-		_0: A5(
+		_0: A6(
 			_user$project$Types$Model,
 			definition,
 			A2(_user$project$State$initMatrix, l, l),
 			A2(_user$project$State$initSnake, p, p),
 			_elm_lang$core$Maybe$Just(
 				A2(_user$project$State$initApple, 1, 1)),
-			_user$project$Types$Play),
+			_user$project$Types$Play,
+			A3(_user$project$State$initWinds, 0.25, l, l)),
 		_1: _elm_lang$core$Platform_Cmd$none
 	};
 }();

@@ -50,6 +50,14 @@ type alias Model =
     , snake : Snake
     , apple : Maybe Apple
     , status : GameStatus
+    -- Wierd variables that affect the psychodalic effects
+    , winds : Winds
+    }
+
+type alias Winds = 
+    { timeMultiplier : Float
+    -- Will be used as a unit to add to cosinus function that applied on each rect size
+    , noiseMatrix : Matrix Float
     }
 
 type alias KeyCode = Int

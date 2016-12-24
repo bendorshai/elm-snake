@@ -27,6 +27,7 @@ init =
         (initSnake p p) 
         (Just (initApple 1 1))
         Play
+        (initWinds 0.25 l l)
     , Cmd.none )
 
 initMatrix : Int -> Int -> Matrix Element
@@ -35,11 +36,11 @@ initMatrix width height =
 
 initDefinition : Definition
 initDefinition = 
-    { offsetX = 25
-    , offsetY = 25
-    , margin = 10
-    , rectSize = 25
-    , radius = 10
+    { offsetX = 50
+    , offsetY = 50
+    , margin = 15
+    , rectSize = 40
+    , radius = 15
     , len = 12
     }
 
@@ -53,6 +54,10 @@ initSnake x y =
 initApple : Int -> Int -> Apple
 initApple x y =
     Types.Apple (loc x y) 
+
+initWinds : Float -> Int -> Int -> Winds
+initWinds timeDiv width heigth = 
+    Winds timeDiv (matrix width heigth (\location -> 0.0)) 
 
 -- UPDATE
 
@@ -110,12 +115,15 @@ step model =
 
         newMatrix = stepMatrix model
         newStatus = stepGameStatus model
+        newWinds = stepWinds model ate
+        
     in
         ( { model 
           | snake = newSnake
           , matrix = newMatrix
           , status = newStatus
-          , apple = apple }
+          , apple = apple 
+          , winds = newWinds}
         , stepCommand model ate
         )
 
@@ -173,7 +181,17 @@ stepSnake model =
             fullNewSnake
         else
             hungryNewSnake
-        
+
+stepWinds : Model -> Bool -> Winds
+stepWinds model ate= 
+    let 
+        winds = model.winds
+
+        -- If snake is eating reduce timeMultiplier, thus time will flow more quickly
+        multiplier = if ate then 0.99 else 1 
+    in
+        { winds 
+        | timeMultiplier = model.winds.timeMultiplier * multiplier }
 
 stepGameStatus : Model -> GameStatus
 stepGameStatus model = 
@@ -195,10 +213,15 @@ stepGameStatus model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
+
     Sub.batch
         [ Keyboard.downs Types.KeyDown
         , Keyboard.ups Types.KeyUp
-        , Time.every (second/4) Types.Tick
+        , if model.status == Play 
+          then 
+            Time.every (second * model.winds.timeMultiplier) Types.Tick
+          else 
+            Sub.none
         ]
 
 -- Conversions
