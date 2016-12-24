@@ -1,0 +1,59 @@
+module Types exposing (..)
+
+import Matrix exposing (..)
+import Time exposing (..)
+
+-- Types
+
+type Element = VoidElement | SnakeElement | AppleElement
+
+type GameStatus = Play | GameOver
+
+type Msg = 
+      KeyDown KeyCode
+    | KeyUp KeyCode
+    | Tick Time
+    | NewApple Location
+
+-- Aliases
+
+type alias Snake = 
+    { body: List Location
+    , direction : Location
+    -- A location of a cell that may exist and may not, depending on whether snake is eating right now!
+    -- basicly it stores the location of the previus last cell
+    , trail : Location
+    }
+
+type alias Apple = 
+    { location: Location 
+    }  
+
+type alias Definition =
+    -- offset from left
+    { offsetX : Int
+    -- offset from top
+    , offsetY : Int
+    -- margin between two cells
+    , margin : Int
+    -- size of each cell in matrix
+    , rectSize : Int
+    -- radius of each matrix cell
+    , radius : Int
+    -- Matrix length (width and height)
+    , len : Int
+    }
+
+type alias Model = 
+    { definition : Definition
+    , matrix : Matrix.Matrix Element
+    , snake : Snake
+    , apple : Maybe Apple
+    , status : GameStatus
+    }
+
+type alias KeyCode = Int
+
+type alias ModelPredicate = (Model -> Bool)
+
+type alias Direction = Matrix.Location
