@@ -9732,9 +9732,9 @@ var _user$project$Types$Definition = F6(
 	function (a, b, c, d, e, f) {
 		return {offsetX: a, offsetY: b, margin: c, rectSize: d, radius: e, len: f};
 	});
-var _user$project$Types$Model = F6(
-	function (a, b, c, d, e, f) {
-		return {definition: a, matrix: b, snake: c, apple: d, status: e, winds: f};
+var _user$project$Types$Model = F7(
+	function (a, b, c, d, e, f, g) {
+		return {definition: a, matrix: b, snake: c, apple: d, status: e, winds: f, topscore: g};
 	});
 var _user$project$Types$Winds = F2(
 	function (a, b) {
@@ -9819,6 +9819,12 @@ var _user$project$State$randomLocationGenerator = function (matrix) {
 		},
 		randomPair);
 };
+var _user$project$State$commandRandomApple = function (matrix) {
+	return A2(
+		_elm_lang$core$Random$generate,
+		_user$project$Types$NewApple,
+		_user$project$State$randomLocationGenerator(matrix));
+};
 var _user$project$State$isEatingSelf = function (model) {
 	var countLocation = _user$project$State$countValueInList(model.snake.body);
 	var body = model.snake.body;
@@ -9899,7 +9905,7 @@ var _user$project$State$subscriptions = function (model) {
 };
 var _user$project$State$stepWinds = F2(
 	function (model, ate) {
-		var multiplier = ate ? 0.99 : 1;
+		var multiplier = ate ? 0.98 : 1;
 		var winds = model.winds;
 		return _elm_lang$core$Native_Utils.update(
 			winds,
@@ -9994,6 +10000,12 @@ var _user$project$State$stepCommand = F2(
 				_1: {ctor: '[]'}
 			});
 	});
+var _user$project$State$stepScore = function (model) {
+	return A2(
+		_elm_lang$core$Basics$max,
+		_elm_lang$core$List$length(model.snake.body),
+		model.topscore);
+};
 var _user$project$State$stepDeathSnake = function (model) {
 	var snake = model.snake;
 	var snakeDisplay = function () {
@@ -10011,10 +10023,10 @@ var _user$project$State$stepDeathSnake = function (model) {
 		{display: snakeDisplay});
 };
 var _user$project$State$initWinds = F3(
-	function (timeDiv, width, heigth) {
+	function (timeMult, width, heigth) {
 		return A2(
 			_user$project$Types$Winds,
-			timeDiv,
+			timeMult,
 			A3(
 				_chendrix$elm_matrix$Matrix$matrix,
 				width,
@@ -10052,49 +10064,57 @@ var _user$project$State$initMatrix = F2(
 				return _user$project$Types$VoidElement;
 			});
 	});
-var _user$project$State$init = function (mayapp) {
+var _user$project$State$init = function () {
 	var definition = _user$project$State$initDefinition;
 	var l = definition.len;
 	var p = (l / 2) | 0;
-	var tempMatrix = A2(_user$project$State$initMatrix, l, l);
-	var matrix = function () {
-		var _p6 = mayapp;
-		if (_p6.ctor === 'Nothing') {
-			return tempMatrix;
-		} else {
-			return A3(_chendrix$elm_matrix$Matrix$set, _p6._0.location, _user$project$Types$AppleElement, tempMatrix);
-		}
-	}();
-	var command = function () {
-		var _p7 = mayapp;
-		if (_p7.ctor === 'Nothing') {
-			return A2(
-				_elm_lang$core$Random$generate,
-				_user$project$Types$NewApple,
-				_user$project$State$randomLocationGenerator(matrix));
-		} else {
-			return _elm_lang$core$Platform_Cmd$none;
-		}
-	}();
+	var matrix = A2(_user$project$State$initMatrix, l, l);
 	return {
 		ctor: '_Tuple2',
-		_0: A6(
+		_0: A7(
 			_user$project$Types$Model,
 			definition,
 			matrix,
 			A2(_user$project$State$initSnake, p, p),
-			mayapp,
+			_elm_lang$core$Maybe$Nothing,
 			_user$project$Types$Play,
-			A3(_user$project$State$initWinds, 0.25, l, l)),
-		_1: command
+			A3(_user$project$State$initWinds, 0.25, l, l),
+			0),
+		_1: _user$project$State$commandRandomApple(matrix)
 	};
-};
+}();
+var _user$project$State$reInit = F2(
+	function (mayapp, score) {
+		var initializedModelCommand = _user$project$State$init;
+		var tempModel = _elm_lang$core$Tuple$first(initializedModelCommand);
+		var newMatrix = function () {
+			var _p6 = mayapp;
+			if (_p6.ctor === 'Nothing') {
+				return tempModel.matrix;
+			} else {
+				return A3(_chendrix$elm_matrix$Matrix$set, _p6._0.location, _user$project$Types$AppleElement, tempModel.matrix);
+			}
+		}();
+		var command = function () {
+			var _p7 = mayapp;
+			if (_p7.ctor === 'Nothing') {
+				return _user$project$State$commandRandomApple(newMatrix);
+			} else {
+				return _elm_lang$core$Platform_Cmd$none;
+			}
+		}();
+		var model = _elm_lang$core$Native_Utils.update(
+			tempModel,
+			{matrix: newMatrix, apple: mayapp, topscore: score});
+		return {ctor: '_Tuple2', _0: model, _1: command};
+	});
 var _user$project$State$step = function (model) {
 	var newStatus = _user$project$State$stepGameStatus(model);
 	var _p8 = newStatus;
 	if ((_p8.ctor === 'GameOver') && (_p8._0 === 9)) {
-		return _user$project$State$init(model.apple);
+		return A2(_user$project$State$reInit, model.apple, model.topscore);
 	} else {
+		var newScore = _user$project$State$stepScore(model);
 		var newMatrix = _user$project$State$stepMatrix(model);
 		var newSnake = function () {
 			var _p9 = newStatus;
@@ -10113,7 +10133,7 @@ var _user$project$State$step = function (model) {
 			ctor: '_Tuple2',
 			_0: _elm_lang$core$Native_Utils.update(
 				model,
-				{snake: newSnake, matrix: newMatrix, status: newStatus, apple: apple, winds: newWinds}),
+				{snake: newSnake, matrix: newMatrix, status: newStatus, apple: apple, winds: newWinds, topscore: newScore}),
 			_1: A2(_user$project$State$stepCommand, model, ate)
 		};
 	}
@@ -10339,34 +10359,60 @@ var _user$project$View$visualizeElement = F3(
 	});
 var _user$project$View$visualizeMatrix = F2(
 	function (definition, matrix) {
-		var entity = _chendrix$elm_matrix$Matrix$flatten(
+		var superMatrix = _chendrix$elm_matrix$Matrix$flatten(
 			A2(
 				_chendrix$elm_matrix$Matrix$mapWithLocation,
 				_user$project$View$visualizeElement(definition),
 				matrix));
-		return A2(
-			_elm_lang$svg$Svg$svg,
-			{
-				ctor: '::',
-				_0: _elm_lang$svg$Svg_Attributes$viewBox('0 0 1000 1000'),
-				_1: {
-					ctor: '::',
-					_0: _elm_lang$svg$Svg_Attributes$width('1000px'),
-					_1: {ctor: '[]'}
-				}
-			},
-			entity);
+		return superMatrix;
 	});
 var _user$project$View$view = function (model) {
-	return A2(_user$project$View$visualizeMatrix, model.definition, model.matrix);
+	var content = A2(
+		_elm_lang$core$List$append,
+		A2(_user$project$View$visualizeMatrix, model.definition, model.matrix),
+		{
+			ctor: '::',
+			_0: A2(
+				_elm_lang$svg$Svg$text_,
+				{
+					ctor: '::',
+					_0: _elm_lang$svg$Svg_Attributes$x('50'),
+					_1: {
+						ctor: '::',
+						_0: _elm_lang$svg$Svg_Attributes$y('35'),
+						_1: {
+							ctor: '::',
+							_0: _elm_lang$svg$Svg_Attributes$fontSize('35px'),
+							_1: {ctor: '[]'}
+						}
+					}
+				},
+				{
+					ctor: '::',
+					_0: _elm_lang$svg$Svg$text(
+						A2(
+							_elm_lang$core$Basics_ops['++'],
+							'Score: ',
+							_elm_lang$core$Basics$toString(model.topscore))),
+					_1: {ctor: '[]'}
+				}),
+			_1: {ctor: '[]'}
+		});
+	return A2(
+		_elm_lang$svg$Svg$svg,
+		{
+			ctor: '::',
+			_0: _elm_lang$svg$Svg_Attributes$viewBox('0 0 1500 1500'),
+			_1: {
+				ctor: '::',
+				_0: _elm_lang$svg$Svg_Attributes$width('1000px'),
+				_1: {ctor: '[]'}
+			}
+		},
+		content);
 };
 var _user$project$Main$main = _elm_lang$html$Html$program(
-	{
-		init: _user$project$State$init(_elm_lang$core$Maybe$Nothing),
-		view: _user$project$View$view,
-		update: _user$project$State$update,
-		subscriptions: _user$project$State$subscriptions
-	})();
+	{init: _user$project$State$init, view: _user$project$View$view, update: _user$project$State$update, subscriptions: _user$project$State$subscriptions})();
 var Elm = {};
 Elm['Main'] = Elm['Main'] || {};
 if (typeof _user$project$Main$main !== 'undefined') {

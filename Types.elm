@@ -19,6 +19,8 @@ type SnakeDisplay = Regular | Sick | None
 
 -- Aliases
 
+type alias Score = Int
+
 type alias Snake = 
     { body: List Location
     , direction : Location
@@ -55,6 +57,7 @@ type alias Model =
     , status : GameStatus
     -- Wierd variables that affect the psychodalic effects
     , winds : Winds
+    , topscore : Score
     }
 
 type alias Winds = 

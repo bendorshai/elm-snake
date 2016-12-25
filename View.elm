@@ -12,21 +12,29 @@ import Matrix exposing (..)
 
 -- VIEW
 
-view : Model -> Html Msg
+view : Model -> Svg Msg
 view model =
-        visualizeMatrix model.definition model.matrix
+  let
+    content = List.append (visualizeMatrix model.definition model.matrix) [
+      Svg.text_ [x "50", y "35", fontSize "35px"][Svg.text ("Score: " ++ toString model.topscore)]
+    ]
+  in
+    svg [ viewBox "0 0 1500 1500", Svg.Attributes.width "1000px" ] content 
+  
+    
+        
 
 -- Visualizers
 
-visualizeMatrix : Definition -> Matrix Element -> Html Msg
+visualizeMatrix : Definition -> Matrix Element -> List(Svg Msg)
 visualizeMatrix definition matrix =
     let 
-        entity = 
+        superMatrix = 
             Matrix.mapWithLocation (visualizeElement definition) matrix 
             |> Matrix.flatten
     in
-     svg [ viewBox "0 0 1000 1000", Svg.Attributes.width "1000px" ] 
-     entity
+        superMatrix
+     
 
 visualizeElement : Definition -> Location -> Element -> Svg msg
 visualizeElement definition location element =

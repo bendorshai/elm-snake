@@ -12,8 +12,8 @@ import Array
 
 -- Init functions
 
-init : Maybe Apple -> ( Model, Cmd Msg )
-init mayapp =
+init : ( Model, Cmd Msg )
+init  =
     let
       definition = initDefinition
 
@@ -21,27 +21,41 @@ init mayapp =
       -- position of snake
       p = l // 2
 
-      tempMatrix = (initMatrix l l) 
-
-      matrix = 
-        case mayapp of
-          Nothing -> tempMatrix
-          -- place apple in matrix
-          Just apple -> Matrix.set apple.location AppleElement tempMatrix
-
-      command = 
-        case mayapp of 
-        Nothing -> Random.generate NewApple (randomLocationGenerator matrix) 
-        Just apple -> Cmd.none 
+      matrix = (initMatrix l l) 
     in
   ( Model 
         definition 
         matrix
         (initSnake p p) 
-        mayapp -- apple
+        Nothing -- apple
         Play
         (initWinds 0.25 l l)
-    , command )
+        0
+    , commandRandomApple matrix)
+
+reInit : Maybe Apple -> Score -> ( Model, Cmd Msg )
+reInit mayapp score =
+    let
+      initializedModelCommand = init
+      tempModel = Tuple.first initializedModelCommand
+
+      newMatrix = 
+        case mayapp of
+          Nothing -> tempModel.matrix
+          -- place apple in matrix
+          Just apple -> Matrix.set apple.location AppleElement tempModel.matrix
+      
+      model = { tempModel
+              | matrix = newMatrix 
+              , apple = mayapp
+              , topscore = score }
+
+      command = 
+        case mayapp of 
+          Nothing -> commandRandomApple newMatrix
+          Just apple -> Cmd.none 
+    in
+  ( model, command )
 
 initMatrix : Int -> Int -> Matrix Element
 initMatrix width height = 
@@ -70,8 +84,8 @@ initApple x y =
     Types.Apple (loc x y) 
 
 initWinds : Float -> Int -> Int -> Winds
-initWinds timeDiv width heigth = 
-    Winds timeDiv (matrix width heigth (\location -> 0.0)) 
+initWinds timeMult width heigth = 
+    Winds timeMult (matrix width heigth (\location -> 0.0)) 
 
 -- UPDATE
 
@@ -137,7 +151,7 @@ step model =
     in
       case newStatus of 
         -- End of game over proccess
-        GameOver 9 -> init model.apple
+        GameOver 9 -> reInit model.apple model.topscore
         _ -> 
           let
             newSnake = 
@@ -153,15 +167,22 @@ step model =
 
             newMatrix = stepMatrix model
             newWinds = stepWinds model ate
+            newScore = stepScore model
           in
             ( { model 
-            | snake = newSnake
-            , matrix = newMatrix
-            , status = newStatus
-            , apple = apple 
-            , winds = newWinds}
+              | snake = newSnake
+              , matrix = newMatrix
+              , status = newStatus
+              , apple = apple 
+              , winds = newWinds
+              , topscore = newScore 
+              }
             , stepCommand model ate
             )
+
+stepScore : Model -> Score
+stepScore model = 
+  Basics.max (List.length model.snake.body) model.topscore
 
 stepCommand : Model -> Bool -> Cmd Msg
 stepCommand model ate = 
@@ -224,7 +245,7 @@ stepWinds model ate=
         winds = model.winds
 
         -- If snake is eating reduce timeMultiplier, thus time will flow more quickly
-        multiplier = if ate then 0.99 else 1 
+        multiplier = if ate then 0.98 else 1 
     in
         { winds 
         | timeMultiplier = model.winds.timeMultiplier * multiplier }
@@ -376,6 +397,10 @@ maybeAppleLocationIn mayapple list =
     case mayapple of 
         Nothing -> False
         Just apple -> List.member apple.location list
+
+commandRandomApple : Matrix Element -> Cmd Msg
+commandRandomApple matrix = 
+  Random.generate NewApple (randomLocationGenerator matrix) 
 
 -- Utils
 
