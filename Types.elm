@@ -5,15 +5,17 @@ import Time exposing (..)
 
 -- Types
 
-type Element = VoidElement | SnakeElement | AppleElement
+type Element = VoidElement | SnakeElement SnakeDisplay | AppleElement
 
-type GameStatus = Play | GameOver
+type GameStatus = Play | GameOver Int
 
 type Msg = 
       KeyDown KeyCode
     | KeyUp KeyCode
     | Tick Time
     | NewApple Location
+
+type SnakeDisplay = Regular | Sick | None
 
 -- Aliases
 
@@ -23,6 +25,7 @@ type alias Snake =
     -- A location of a cell that may exist and may not, depending on whether snake is eating right now!
     -- basicly it stores the location of the previus last cell
     , trail : Location
+    , display : SnakeDisplay
     }
 
 type alias Apple = 

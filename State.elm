@@ -12,23 +12,36 @@ import Array
 
 -- Init functions
 
-init : ( Model, Cmd Msg )
-init =
+init : Maybe Apple -> ( Model, Cmd Msg )
+init mayapp =
     let
       definition = initDefinition
 
       l = definition.len
       -- position of snake
       p = l // 2
+
+      tempMatrix = (initMatrix l l) 
+
+      matrix = 
+        case mayapp of
+          Nothing -> tempMatrix
+          -- place apple in matrix
+          Just apple -> Matrix.set apple.location AppleElement tempMatrix
+
+      command = 
+        case mayapp of 
+        Nothing -> Random.generate NewApple (randomLocationGenerator matrix) 
+        Just apple -> Cmd.none 
     in
   ( Model 
         definition 
-        (initMatrix l l) 
+        matrix
         (initSnake p p) 
-        (Just (initApple 1 1))
+        mayapp -- apple
         Play
         (initWinds 0.25 l l)
-    , Cmd.none )
+    , command )
 
 initMatrix : Int -> Int -> Matrix Element
 initMatrix width height = 
@@ -49,6 +62,7 @@ initSnake x y =
     { body = [loc x y]
     , direction = loc -1 0
     , trail = loc x y 
+    , display = Regular
     }
 
 initApple : Int -> Int -> Apple
@@ -66,35 +80,36 @@ update msg model =
     case msg of
         -- Update snake's direction
         KeyDown keyCode ->
-            if model.status == GameOver
-            then
-                init
-            else let 
-                snake = model.snake
-                direction = keyCode |> keycodeToDirection snake.direction
-                head = snakeHead snake
-                throat = snakeThroat snake
-                snakeInNewDirection = { snake | direction = direction}
-            in 
-                -- if not trying to go back to throat
-                if (addDirection head direction) /= throat
-                then
-                    ( { model | snake = snakeInNewDirection}
-                    , Cmd.none 
-                    )
-                else 
-                    ( model, Cmd.none )
+            case model.status of 
+                -- Keys don't work when game is over
+                GameOver _ -> ( model, Cmd.none )
+                Play ->
+                    let 
+                        snake = model.snake
+                        direction = keyCode |> keycodeToDirection snake.direction
+                        head = snakeHead snake
+                        throat = snakeThroat snake
+                        snakeInNewDirection = { snake | direction = direction}
+                    in 
+                        -- if not trying to go back to throat
+                        if (addDirection head direction) /= throat
+                        then
+                            ( { model | snake = snakeInNewDirection}
+                            , Cmd.none 
+                            )
+                        else 
+                            ( model, Cmd.none )
         KeyUp keyCode ->
             ( model, Cmd.none )
         Tick time -> 
-            let
-              {- Step the whole world a bit, recive a new model of the world,
-                 and a command that might affect the view or the model again... -}
-              newModelNewCommand = step model
-              newModel = Tuple.first newModelNewCommand
-              newCommand = Tuple.second newModelNewCommand
-            in
-            ( newModel, newCommand )
+                let
+                    {- Step the whole world a bit, recive a new model of the world,
+                        and a command that might affect the view or the model again... -}
+                    newModelNewCommand = step model
+                    newModel = Tuple.first newModelNewCommand
+                    newCommand = Tuple.second newModelNewCommand
+                in
+                    ( newModel, newCommand )
         NewApple location -> 
             ( { model
               | apple = Just (Apple location) }
@@ -102,30 +117,51 @@ update msg model =
 
 -- Steppers
 
-step : Model -> (Model, Cmd Msg)
-step model = 
-    let
-        newSnake = stepSnake model
-
-        -- did snake just eat now?
-        ate = List.length model.snake.body < List.length newSnake.body
-
-        -- Remove the apple so snake will not eat it twice
-        apple = if ate then Nothing else model.apple
-
-        newMatrix = stepMatrix model
-        newStatus = stepGameStatus model
-        newWinds = stepWinds model ate
+stepDeathSnake : Model -> Snake
+stepDeathSnake model =
+    let 
+        snakeDisplay = case model.status of
+            -- should not happen 
+            Play -> Regular
+            GameOver n -> if n % 2 == 0 then None else Sick
         
+        snake = model.snake
     in
-        ( { model 
-          | snake = newSnake
-          , matrix = newMatrix
-          , status = newStatus
-          , apple = apple 
-          , winds = newWinds}
-        , stepCommand model ate
-        )
+        { snake 
+        | display = snakeDisplay }
+
+step : Model -> (Model, Cmd Msg)
+step model =
+    let
+      newStatus = stepGameStatus model
+    in
+      case newStatus of 
+        -- End of game over proccess
+        GameOver 9 -> init model.apple
+        _ -> 
+          let
+            newSnake = 
+              case newStatus of 
+                Play -> stepSnake model
+                GameOver n -> stepDeathSnake model
+
+            -- did snake just eat now?
+            ate = List.length model.snake.body < List.length newSnake.body
+
+            -- Remove the apple so snake will not eat it twice
+            apple = if ate then Nothing else model.apple
+
+            newMatrix = stepMatrix model
+            newWinds = stepWinds model ate
+          in
+            ( { model 
+            | snake = newSnake
+            , matrix = newMatrix
+            , status = newStatus
+            , apple = apple 
+            , winds = newWinds}
+            , stepCommand model ate
+            )
 
 stepCommand : Model -> Bool -> Cmd Msg
 stepCommand model ate = 
@@ -164,8 +200,8 @@ stepSnake model =
         
         newSnake : List Location -> Snake
         newSnake body = 
-            Snake body model.snake.direction prevTail
-
+            Snake body model.snake.direction prevTail Regular
+        
         -- next step potentials
         hungryNewBody = newHead :: exceptTail
         hungryNewSnake = newSnake hungryNewBody
@@ -195,19 +231,28 @@ stepWinds model ate=
 
 stepGameStatus : Model -> GameStatus
 stepGameStatus model = 
-    let
-      reasonsToDie = [
-          model |> isInBorders |> not,
-          model |> isEatingSelf
-      ]
+    case model.status of
+        -- Step in the proccess of gameover
+        GameOver n -> GameOver (n+1)
+        Play ->
+            let
+              -- Is snake gonna eat itself? or be outside of the borders in this turn?
+              fictiveFuture = { model 
+                              | snake = stepSnake model }
 
-      shouldDie = List.any (\b -> b) reasonsToDie
-    in
-    if shouldDie
-    then 
-        GameOver
-    else
-        Play
+              reasonsToDie = [
+                  fictiveFuture |> isInBorders |> not,
+                  fictiveFuture |> isEatingSelf
+              ]
+
+              shouldDie = List.any (\b -> b) reasonsToDie
+            in
+              if shouldDie
+              then 
+                  GameOver 0
+              else
+                  Play
+
 
 -- SUBSCRIPTIONS
 
@@ -217,11 +262,7 @@ subscriptions model =
     Sub.batch
         [ Keyboard.downs Types.KeyDown
         , Keyboard.ups Types.KeyUp
-        , if model.status == Play 
-          then 
-            Time.every (second * model.winds.timeMultiplier) Types.Tick
-          else 
-            Sub.none
+        ,  Time.every (second * model.winds.timeMultiplier) Types.Tick
         ]
 
 -- Conversions
@@ -255,7 +296,7 @@ locationToElement : Model -> Location -> Element
 locationToElement model location = 
     if List.member location model.snake.body
     then 
-        SnakeElement
+        SnakeElement model.snake.display
     else if maybeAppleInLocaion model.apple location
     then 
         AppleElement

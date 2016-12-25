@@ -9721,9 +9721,9 @@ var _elm_lang$svg$Svg_Attributes$additive = _elm_lang$virtual_dom$VirtualDom$att
 var _elm_lang$svg$Svg_Attributes$accumulate = _elm_lang$virtual_dom$VirtualDom$attribute('accumulate');
 var _elm_lang$svg$Svg_Attributes$accelerate = _elm_lang$virtual_dom$VirtualDom$attribute('accelerate');
 var _elm_lang$svg$Svg_Attributes$accentHeight = _elm_lang$virtual_dom$VirtualDom$attribute('accent-height');
-var _user$project$Types$Snake = F3(
-	function (a, b, c) {
-		return {body: a, direction: b, trail: c};
+var _user$project$Types$Snake = F4(
+	function (a, b, c, d) {
+		return {body: a, direction: b, trail: c, display: d};
 	});
 var _user$project$Types$Apple = function (a) {
 	return {location: a};
@@ -9741,9 +9741,13 @@ var _user$project$Types$Winds = F2(
 		return {timeMultiplier: a, noiseMatrix: b};
 	});
 var _user$project$Types$AppleElement = {ctor: 'AppleElement'};
-var _user$project$Types$SnakeElement = {ctor: 'SnakeElement'};
+var _user$project$Types$SnakeElement = function (a) {
+	return {ctor: 'SnakeElement', _0: a};
+};
 var _user$project$Types$VoidElement = {ctor: 'VoidElement'};
-var _user$project$Types$GameOver = {ctor: 'GameOver'};
+var _user$project$Types$GameOver = function (a) {
+	return {ctor: 'GameOver', _0: a};
+};
 var _user$project$Types$Play = {ctor: 'Play'};
 var _user$project$Types$NewApple = function (a) {
 	return {ctor: 'NewApple', _0: a};
@@ -9757,6 +9761,9 @@ var _user$project$Types$KeyUp = function (a) {
 var _user$project$Types$KeyDown = function (a) {
 	return {ctor: 'KeyDown', _0: a};
 };
+var _user$project$Types$None = {ctor: 'None'};
+var _user$project$Types$Sick = {ctor: 'Sick'};
+var _user$project$Types$Regular = {ctor: 'Regular'};
 var _user$project$State$countValueInList = F2(
 	function (list, val) {
 		return _elm_lang$core$List$length(
@@ -9833,7 +9840,7 @@ var _user$project$State$isEating = function (model) {
 };
 var _user$project$State$locationToElement = F2(
 	function (model, location) {
-		return A2(_elm_lang$core$List$member, location, model.snake.body) ? _user$project$Types$SnakeElement : (A2(_user$project$State$maybeAppleInLocaion, model.apple, location) ? _user$project$Types$AppleElement : _user$project$Types$VoidElement);
+		return A2(_elm_lang$core$List$member, location, model.snake.body) ? _user$project$Types$SnakeElement(model.snake.display) : (A2(_user$project$State$maybeAppleInLocaion, model.apple, location) ? _user$project$Types$AppleElement : _user$project$Types$VoidElement);
 	});
 var _user$project$State$keycodeToDirection = F2(
 	function (defaultDirection, key) {
@@ -9884,29 +9891,11 @@ var _user$project$State$subscriptions = function (model) {
 				_0: _elm_lang$keyboard$Keyboard$ups(_user$project$Types$KeyUp),
 				_1: {
 					ctor: '::',
-					_0: _elm_lang$core$Native_Utils.eq(model.status, _user$project$Types$Play) ? A2(_elm_lang$core$Time$every, _elm_lang$core$Time$second * model.winds.timeMultiplier, _user$project$Types$Tick) : _elm_lang$core$Platform_Sub$none,
+					_0: A2(_elm_lang$core$Time$every, _elm_lang$core$Time$second * model.winds.timeMultiplier, _user$project$Types$Tick),
 					_1: {ctor: '[]'}
 				}
 			}
 		});
-};
-var _user$project$State$stepGameStatus = function (model) {
-	var reasonsToDie = {
-		ctor: '::',
-		_0: !_user$project$State$isInBorders(model),
-		_1: {
-			ctor: '::',
-			_0: _user$project$State$isEatingSelf(model),
-			_1: {ctor: '[]'}
-		}
-	};
-	var shouldDie = A2(
-		_elm_lang$core$List$any,
-		function (b) {
-			return b;
-		},
-		reasonsToDie);
-	return shouldDie ? _user$project$Types$GameOver : _user$project$Types$Play;
 };
 var _user$project$State$stepWinds = F2(
 	function (model, ate) {
@@ -9929,7 +9918,7 @@ var _user$project$State$stepSnake = function (model) {
 		_elm_lang$core$List$head(
 			A2(_elm_lang$core$List$drop, length - 1, body)));
 	var newSnake = function (body) {
-		return A3(_user$project$Types$Snake, body, model.snake.direction, prevTail);
+		return A4(_user$project$Types$Snake, body, model.snake.direction, prevTail, _user$project$Types$Regular);
 	};
 	var hungryNewSnake = newSnake(hungryNewBody);
 	var eating = _user$project$State$isEating(
@@ -9946,6 +9935,34 @@ var _user$project$State$stepSnake = function (model) {
 		});
 	var fullNewSnake = newSnake(fullNewBody);
 	return eating ? fullNewSnake : hungryNewSnake;
+};
+var _user$project$State$stepGameStatus = function (model) {
+	var _p4 = model.status;
+	if (_p4.ctor === 'GameOver') {
+		return _user$project$Types$GameOver(_p4._0 + 1);
+	} else {
+		var fictiveFuture = _elm_lang$core$Native_Utils.update(
+			model,
+			{
+				snake: _user$project$State$stepSnake(model)
+			});
+		var reasonsToDie = {
+			ctor: '::',
+			_0: !_user$project$State$isInBorders(fictiveFuture),
+			_1: {
+				ctor: '::',
+				_0: _user$project$State$isEatingSelf(fictiveFuture),
+				_1: {ctor: '[]'}
+			}
+		};
+		var shouldDie = A2(
+			_elm_lang$core$List$any,
+			function (b) {
+				return b;
+			},
+			reasonsToDie);
+		return shouldDie ? _user$project$Types$GameOver(0) : _user$project$Types$Play;
+	}
 };
 var _user$project$State$stepMatrix = function (model) {
 	return A2(
@@ -9977,22 +9994,21 @@ var _user$project$State$stepCommand = F2(
 				_1: {ctor: '[]'}
 			});
 	});
-var _user$project$State$step = function (model) {
-	var newStatus = _user$project$State$stepGameStatus(model);
-	var newMatrix = _user$project$State$stepMatrix(model);
-	var newSnake = _user$project$State$stepSnake(model);
-	var ate = _elm_lang$core$Native_Utils.cmp(
-		_elm_lang$core$List$length(model.snake.body),
-		_elm_lang$core$List$length(newSnake.body)) < 0;
-	var apple = ate ? _elm_lang$core$Maybe$Nothing : model.apple;
-	var newWinds = A2(_user$project$State$stepWinds, model, ate);
-	return {
-		ctor: '_Tuple2',
-		_0: _elm_lang$core$Native_Utils.update(
-			model,
-			{snake: newSnake, matrix: newMatrix, status: newStatus, apple: apple, winds: newWinds}),
-		_1: A2(_user$project$State$stepCommand, model, ate)
-	};
+var _user$project$State$stepDeathSnake = function (model) {
+	var snake = model.snake;
+	var snakeDisplay = function () {
+		var _p5 = model.status;
+		if (_p5.ctor === 'Play') {
+			return _user$project$Types$Regular;
+		} else {
+			return _elm_lang$core$Native_Utils.eq(
+				A2(_elm_lang$core$Basics_ops['%'], _p5._0, 2),
+				0) ? _user$project$Types$None : _user$project$Types$Sick;
+		}
+	}();
+	return _elm_lang$core$Native_Utils.update(
+		snake,
+		{display: snakeDisplay});
 };
 var _user$project$State$initWinds = F3(
 	function (timeDiv, width, heigth) {
@@ -10021,7 +10037,8 @@ var _user$project$State$initSnake = F2(
 				_1: {ctor: '[]'}
 			},
 			direction: A2(_chendrix$elm_matrix$Matrix$loc, -1, 0),
-			trail: A2(_chendrix$elm_matrix$Matrix$loc, x, y)
+			trail: A2(_chendrix$elm_matrix$Matrix$loc, x, y),
+			display: _user$project$Types$Regular
 		};
 	});
 var _user$project$State$initDefinition = {offsetX: 50, offsetY: 50, margin: 15, rectSize: 40, radius: 15, len: 12};
@@ -10035,34 +10052,83 @@ var _user$project$State$initMatrix = F2(
 				return _user$project$Types$VoidElement;
 			});
 	});
-var _user$project$State$init = function () {
+var _user$project$State$init = function (mayapp) {
 	var definition = _user$project$State$initDefinition;
 	var l = definition.len;
 	var p = (l / 2) | 0;
+	var tempMatrix = A2(_user$project$State$initMatrix, l, l);
+	var matrix = function () {
+		var _p6 = mayapp;
+		if (_p6.ctor === 'Nothing') {
+			return tempMatrix;
+		} else {
+			return A3(_chendrix$elm_matrix$Matrix$set, _p6._0.location, _user$project$Types$AppleElement, tempMatrix);
+		}
+	}();
+	var command = function () {
+		var _p7 = mayapp;
+		if (_p7.ctor === 'Nothing') {
+			return A2(
+				_elm_lang$core$Random$generate,
+				_user$project$Types$NewApple,
+				_user$project$State$randomLocationGenerator(matrix));
+		} else {
+			return _elm_lang$core$Platform_Cmd$none;
+		}
+	}();
 	return {
 		ctor: '_Tuple2',
 		_0: A6(
 			_user$project$Types$Model,
 			definition,
-			A2(_user$project$State$initMatrix, l, l),
+			matrix,
 			A2(_user$project$State$initSnake, p, p),
-			_elm_lang$core$Maybe$Just(
-				A2(_user$project$State$initApple, 1, 1)),
+			mayapp,
 			_user$project$Types$Play,
 			A3(_user$project$State$initWinds, 0.25, l, l)),
-		_1: _elm_lang$core$Platform_Cmd$none
+		_1: command
 	};
-}();
+};
+var _user$project$State$step = function (model) {
+	var newStatus = _user$project$State$stepGameStatus(model);
+	var _p8 = newStatus;
+	if ((_p8.ctor === 'GameOver') && (_p8._0 === 9)) {
+		return _user$project$State$init(model.apple);
+	} else {
+		var newMatrix = _user$project$State$stepMatrix(model);
+		var newSnake = function () {
+			var _p9 = newStatus;
+			if (_p9.ctor === 'Play') {
+				return _user$project$State$stepSnake(model);
+			} else {
+				return _user$project$State$stepDeathSnake(model);
+			}
+		}();
+		var ate = _elm_lang$core$Native_Utils.cmp(
+			_elm_lang$core$List$length(model.snake.body),
+			_elm_lang$core$List$length(newSnake.body)) < 0;
+		var apple = ate ? _elm_lang$core$Maybe$Nothing : model.apple;
+		var newWinds = A2(_user$project$State$stepWinds, model, ate);
+		return {
+			ctor: '_Tuple2',
+			_0: _elm_lang$core$Native_Utils.update(
+				model,
+				{snake: newSnake, matrix: newMatrix, status: newStatus, apple: apple, winds: newWinds}),
+			_1: A2(_user$project$State$stepCommand, model, ate)
+		};
+	}
+};
 var _user$project$State$update = F2(
 	function (msg, model) {
-		var _p4 = msg;
-		switch (_p4.ctor) {
+		var _p10 = msg;
+		switch (_p10.ctor) {
 			case 'KeyDown':
-				if (_elm_lang$core$Native_Utils.eq(model.status, _user$project$Types$GameOver)) {
-					return _user$project$State$init;
+				var _p11 = model.status;
+				if (_p11.ctor === 'GameOver') {
+					return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
 				} else {
 					var snake = model.snake;
-					var direction = A2(_user$project$State$keycodeToDirection, snake.direction, _p4._0);
+					var direction = A2(_user$project$State$keycodeToDirection, snake.direction, _p10._0);
 					var head = _user$project$State$snakeHead(snake);
 					var throat = _user$project$State$snakeThroat(snake);
 					var snakeInNewDirection = _elm_lang$core$Native_Utils.update(
@@ -10092,50 +10158,12 @@ var _user$project$State$update = F2(
 						model,
 						{
 							apple: _elm_lang$core$Maybe$Just(
-								_user$project$Types$Apple(_p4._0))
+								_user$project$Types$Apple(_p10._0))
 						}),
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
 		}
 	});
-var _user$project$View$imageStyle = function (definition) {
-	var length = A2(
-		F2(
-			function (x, y) {
-				return A2(_elm_lang$core$Basics_ops['++'], x, y);
-			}),
-		'px',
-		_elm_lang$core$Basics$toString((definition.len * definition.rectSize) + (definition.margin * (definition.len - 1))));
-	var left = A2(
-		_elm_lang$core$Basics_ops['++'],
-		_elm_lang$core$Basics$toString(definition.offsetX),
-		'px');
-	var top = A2(
-		_elm_lang$core$Basics_ops['++'],
-		_elm_lang$core$Basics$toString(definition.offsetY),
-		'px');
-	return {
-		ctor: '::',
-		_0: {ctor: '_Tuple2', _0: 'top', _1: top},
-		_1: {
-			ctor: '::',
-			_0: {ctor: '_Tuple2', _0: 'left', _1: left},
-			_1: {
-				ctor: '::',
-				_0: {ctor: '_Tuple2', _0: 'width', _1: length},
-				_1: {
-					ctor: '::',
-					_0: {ctor: '_Tuple2', _0: 'height', _1: length},
-					_1: {
-						ctor: '::',
-						_0: {ctor: '_Tuple2', _0: 'position', _1: 'relative'},
-						_1: {ctor: '[]'}
-					}
-				}
-			}
-		}
-	};
-};
 var _user$project$View$cellStyle = function (color) {
 	return {
 		ctor: '::',
@@ -10156,21 +10184,117 @@ var _user$project$View$cellStyle = function (color) {
 	};
 };
 var _user$project$View$appleStyle = _user$project$View$cellStyle('red');
-var _user$project$View$snakeStyle = _user$project$View$cellStyle('black');
 var _user$project$View$voidStyle = _user$project$View$cellStyle('green');
+var _user$project$View$snakeStyle = function (display) {
+	return _elm_lang$core$Native_Utils.eq(display, _user$project$Types$None) ? _user$project$View$voidStyle : (_elm_lang$core$Native_Utils.eq(display, _user$project$Types$Sick) ? _user$project$View$cellStyle('grey') : _user$project$View$cellStyle('black'));
+};
 var _user$project$View$styleOf = function (element) {
 	var _p0 = element;
 	switch (_p0.ctor) {
 		case 'VoidElement':
 			return _user$project$View$voidStyle;
 		case 'SnakeElement':
-			return _user$project$View$snakeStyle;
+			return _user$project$View$snakeStyle(_p0._0);
 		default:
 			return _user$project$View$appleStyle;
 	}
 };
+var _user$project$View$appleAnimation = {
+	ctor: '::',
+	_0: A2(
+		_elm_lang$svg$Svg$animate,
+		{
+			ctor: '::',
+			_0: _elm_lang$svg$Svg_Attributes$attributeType('svg'),
+			_1: {
+				ctor: '::',
+				_0: _elm_lang$svg$Svg_Attributes$attributeName('rx'),
+				_1: {
+					ctor: '::',
+					_0: _elm_lang$svg$Svg_Attributes$values('15;30;15'),
+					_1: {
+						ctor: '::',
+						_0: _elm_lang$svg$Svg_Attributes$dur('1.94s'),
+						_1: {
+							ctor: '::',
+							_0: _elm_lang$svg$Svg_Attributes$repeatCount('indefinite'),
+							_1: {ctor: '[]'}
+						}
+					}
+				}
+			}
+		},
+		{ctor: '[]'}),
+	_1: {
+		ctor: '::',
+		_0: A2(
+			_elm_lang$svg$Svg$animate,
+			{
+				ctor: '::',
+				_0: _elm_lang$svg$Svg_Attributes$attributeType('svg'),
+				_1: {
+					ctor: '::',
+					_0: _elm_lang$svg$Svg_Attributes$attributeName('ry'),
+					_1: {
+						ctor: '::',
+						_0: _elm_lang$svg$Svg_Attributes$values('15;30;15'),
+						_1: {
+							ctor: '::',
+							_0: _elm_lang$svg$Svg_Attributes$dur('1.96s'),
+							_1: {
+								ctor: '::',
+								_0: _elm_lang$svg$Svg_Attributes$repeatCount('indefinite'),
+								_1: {ctor: '[]'}
+							}
+						}
+					}
+				}
+			},
+			{ctor: '[]'}),
+		_1: {ctor: '[]'}
+	}
+};
+var _user$project$View$snakeAnimation = {
+	ctor: '::',
+	_0: A2(
+		_elm_lang$svg$Svg$animate,
+		{
+			ctor: '::',
+			_0: _elm_lang$svg$Svg_Attributes$attributeType('svg'),
+			_1: {
+				ctor: '::',
+				_0: _elm_lang$svg$Svg_Attributes$attributeName('rx'),
+				_1: {
+					ctor: '::',
+					_0: _elm_lang$svg$Svg_Attributes$values('15;0;15'),
+					_1: {
+						ctor: '::',
+						_0: _elm_lang$svg$Svg_Attributes$dur('2s'),
+						_1: {
+							ctor: '::',
+							_0: _elm_lang$svg$Svg_Attributes$repeatCount('indefinite'),
+							_1: {ctor: '[]'}
+						}
+					}
+				}
+			}
+		},
+		{ctor: '[]'}),
+	_1: {ctor: '[]'}
+};
 var _user$project$View$visualizeElement = F3(
 	function (definition, location, element) {
+		var innerSvg = function () {
+			var _p1 = element;
+			switch (_p1.ctor) {
+				case 'AppleElement':
+					return _user$project$View$appleAnimation;
+				case 'SnakeElement':
+					return _user$project$View$snakeAnimation;
+				default:
+					return {ctor: '[]'};
+			}
+		}();
 		var r = _elm_lang$core$Basics$toString(definition.radius);
 		var yloc = _elm_lang$core$Tuple$second(location);
 		var xloc = _elm_lang$core$Tuple$first(location);
@@ -10211,7 +10335,7 @@ var _user$project$View$visualizeElement = F3(
 					}
 				}
 			},
-			{ctor: '[]'});
+			innerSvg);
 	});
 var _user$project$View$visualizeMatrix = F2(
 	function (definition, matrix) {
@@ -10233,27 +10357,16 @@ var _user$project$View$visualizeMatrix = F2(
 			},
 			entity);
 	});
-var _user$project$View$visualizeGameover = function (definition) {
-	var width_ = 5;
-	return A2(
-		_elm_lang$html$Html$img,
-		{
-			ctor: '::',
-			_0: _elm_lang$html$Html_Attributes$src('assets/gameover.png'),
-			_1: {
-				ctor: '::',
-				_0: _elm_lang$html$Html_Attributes$style(
-					_user$project$View$imageStyle(definition)),
-				_1: {ctor: '[]'}
-			}
-		},
-		{ctor: '[]'});
-};
 var _user$project$View$view = function (model) {
-	return _elm_lang$core$Native_Utils.eq(model.status, _user$project$Types$Play) ? A2(_user$project$View$visualizeMatrix, model.definition, model.matrix) : _user$project$View$visualizeGameover(model.definition);
+	return A2(_user$project$View$visualizeMatrix, model.definition, model.matrix);
 };
 var _user$project$Main$main = _elm_lang$html$Html$program(
-	{init: _user$project$State$init, view: _user$project$View$view, update: _user$project$State$update, subscriptions: _user$project$State$subscriptions})();
+	{
+		init: _user$project$State$init(_elm_lang$core$Maybe$Nothing),
+		view: _user$project$View$view,
+		update: _user$project$State$update,
+		subscriptions: _user$project$State$subscriptions
+	})();
 var Elm = {};
 Elm['Main'] = Elm['Main'] || {};
 if (typeof _user$project$Main$main !== 'undefined') {
