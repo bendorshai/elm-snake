@@ -29,13 +29,20 @@ init  =
         (initSnake p p) 
         Nothing -- apple
         Play
-        (initWinds 0.25 l l)
-        0
+        (initWinds 0.25 l l Basics.sin Basics.sin)
+        {- score -} 0
+        {- tick -} 0
     , commandRandomApple matrix)
 
-reInit : Maybe Apple -> Score -> ( Model, Cmd Msg )
-reInit mayapp score =
+reInit : Model -> ( Model, Cmd Msg )
+reInit model =
     let
+
+      mayapp = model.apple
+      score = model.topscore
+      milliticks = model.milliticks
+      winds = model.winds
+
       initializedModelCommand = init
       tempModel = Tuple.first initializedModelCommand
 
@@ -45,17 +52,22 @@ reInit mayapp score =
           -- place apple in matrix
           Just apple -> Matrix.set apple.location AppleElement tempModel.matrix
       
-      model = { tempModel
+
+      newWind = { }
+
+      newModel = { tempModel
               | matrix = newMatrix 
               , apple = mayapp
-              , topscore = score }
+              , topscore = score
+              , milliticks = milliticks 
+              , winds = winds}
 
-      command = 
+      newCommand = 
         case mayapp of 
           Nothing -> commandRandomApple newMatrix
           Just apple -> Cmd.none 
     in
-  ( model, command )
+  ( newModel, newCommand )
 
 initMatrix : Int -> Int -> Matrix Element
 initMatrix width height = 
@@ -65,10 +77,11 @@ initDefinition : Definition
 initDefinition = 
     { offsetX = 50
     , offsetY = 50
-    , margin = 15
+    , margin = 7
     , rectSize = 40
     , radius = 15
     , len = 12
+    , cyclicmode = True
     }
 
 initSnake : Int -> Int -> Snake 
@@ -83,9 +96,9 @@ initApple : Int -> Int -> Apple
 initApple x y =
     Types.Apple (loc x y) 
 
-initWinds : Float -> Int -> Int -> Winds
-initWinds timeMult width heigth = 
-    Winds timeMult (matrix width heigth (\location -> 0.0)) 
+initWinds : Float -> Int -> Int -> WaveFunction -> WaveFunction -> Winds
+initWinds timeMult width heigth waveX waveY = 
+    Winds timeMult 0.5 waveX waveY
 
 -- UPDATE
 
@@ -128,21 +141,21 @@ update msg model =
             ( { model
               | apple = Just (Apple location) }
               , Cmd.none )
+        Millitick time ->
+          let
+            newAmplitude = stepAmplitude model
+            newMilliticks = stepMillitick model
+            winds = model.winds
+            newWinds = { winds
+                       | amplitude = newAmplitude }
+
+          in
+          ( { model
+            | milliticks = newMilliticks
+            , winds = newWinds }
+            , Cmd.none )
 
 -- Steppers
-
-stepDeathSnake : Model -> Snake
-stepDeathSnake model =
-    let 
-        snakeDisplay = case model.status of
-            -- should not happen 
-            Play -> Regular
-            GameOver n -> if n % 2 == 0 then None else Sick
-        
-        snake = model.snake
-    in
-        { snake 
-        | display = snakeDisplay }
 
 step : Model -> (Model, Cmd Msg)
 step model =
@@ -151,7 +164,7 @@ step model =
     in
       case newStatus of 
         -- End of game over proccess
-        GameOver 9 -> reInit model.apple model.topscore
+        GameOver 9 -> reInit model
         _ -> 
           let
             newSnake = 
@@ -179,6 +192,42 @@ step model =
               }
             , stepCommand model ate
             )
+
+stepAmplitude : Model -> Float
+stepAmplitude model = 
+    let
+    -- 20 seonds (but i have an error in the calc)
+    cycletime = ( 5 * 1000 ) |> toFloat
+
+    -- 2 pi degrees in 1 cycletime
+    degree = ( toFloat ( model.milliticks ) / cycletime ) * pi * 2
+    
+    zeroTwoRange = 1 + (cos (pi + degree))
+
+    min = 0
+    max = 1.6
+
+    minMaxRange = ( ( zeroTwoRange / 2 ) * ( max-min ) ) + min
+  in
+    minMaxRange
+
+-- amplitude changes over time from min value to max value
+stepMillitick : Model -> Int
+stepMillitick model =
+  model.milliticks + 1
+
+stepDeathSnake : Model -> Snake
+stepDeathSnake model =
+    let 
+        snakeDisplay = case model.status of
+            -- should not happen 
+            Play -> Regular
+            GameOver n -> if n % 2 == 0 then None else Sick
+        
+        snake = model.snake
+    in
+        { snake 
+        | display = snakeDisplay }
 
 stepScore : Model -> Score
 stepScore model = 
@@ -214,7 +263,7 @@ stepSnake model =
         exceptTail = List.take (length-1) body 
        
         -- new head and prev tail
-        newHead = addDirection currentHead model.snake.direction
+        newHead = stepSnakeHead model
         prevTail = List.drop (length-1) body 
                         |> List.head 
                         |> certainLocation
@@ -250,6 +299,53 @@ stepWinds model ate=
         { winds 
         | timeMultiplier = model.winds.timeMultiplier * multiplier }
 
+stepSnakeHead : Model -> Location
+stepSnakeHead model = 
+  let
+    mayhead = (Array.fromList model.snake.body) |> Array.get 0 
+    
+    head = case mayhead of 
+      Just location -> location
+      -- Exception
+      Nothing -> loc 0 0 
+    
+    naiveHead = addDirection head model.snake.direction
+    x = Tuple.first naiveHead
+    y = Tuple.second naiveHead
+
+    isInBoard = 
+      x >= 0 &&
+      y >= 0 &&
+      x < colCount model.matrix &&
+      y < rowCount model.matrix
+
+  in
+    -- If the next naive step of snake will stay on board 
+    -- or the game is not on cyclic mode, 
+    -- return the naive step 
+    if not model.definition.cyclicmode ||
+       isInBoard
+    then 
+      naiveHead
+    -- else, it is cyclic mode and out of board step
+    else
+      let
+        lengthx = colCount model.matrix
+        lengthy = rowCount model.matrix 
+      in
+        stepCoordinateCyclic naiveHead lengthx lengthy
+
+stepCoordinateCyclic : Location -> Int -> Int -> Location
+stepCoordinateCyclic naiveHead lengthx lengthy =  
+  let 
+    x = Tuple.first naiveHead
+    y = Tuple.second naiveHead
+
+    newX = x % lengthx
+    newY = y % lengthy
+  in 
+    loc newX newY
+
 stepGameStatus : Model -> GameStatus
 stepGameStatus model = 
     case model.status of
@@ -260,11 +356,13 @@ stepGameStatus model =
               -- Is snake gonna eat itself? or be outside of the borders in this turn?
               fictiveFuture = { model 
                               | snake = stepSnake model }
+              
+              predicatesToDie = 
+                cyclicmodeToDeathPredicates model.definition.cyclicmode
+              
 
-              reasonsToDie = [
-                  fictiveFuture |> isInBorders |> not,
-                  fictiveFuture |> isEatingSelf
-              ]
+              reasonsToDie = 
+                List.map (\predicate -> fictiveFuture |> predicate) predicatesToDie
 
               shouldDie = List.any (\b -> b) reasonsToDie
             in
@@ -274,6 +372,21 @@ stepGameStatus model =
               else
                   Play
 
+cyclicmodeToDeathPredicates : Bool -> List (Model -> Bool)
+cyclicmodeToDeathPredicates cyclicmode = 
+  if cyclicmode
+  then
+    [ isEatingSelf ]
+  else
+    {- 
+      Note: this is nice because it used to look like
+      fictiveFuture |> isInBorders |> not,
+      but since all I wanted is to leave the fictive future part 
+      I couldn't now send the isInBorders Function into `not` function that accepts Bool
+    -}
+    [ isInBorders >> not
+    , isEatingSelf 
+    ]
 
 -- SUBSCRIPTIONS
 
@@ -283,10 +396,11 @@ subscriptions model =
     Sub.batch
         [ Keyboard.downs Types.KeyDown
         , Keyboard.ups Types.KeyUp
-        ,  Time.every (second * model.winds.timeMultiplier) Types.Tick
+        , every (second * model.winds.timeMultiplier) Tick
+        , every millisecond Millitick 
         ]
 
--- Conversions
+-- Conversions 
 
 certainLocation : Maybe Location -> Location
 certainLocation mayloc = 

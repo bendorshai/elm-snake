@@ -4,7 +4,6 @@ module View exposing (..)
 import Types exposing (..)
 
 -- External imports
-import Html exposing (..)
 import Html.Attributes exposing (..)
 import Svg exposing (..)
 import Svg.Attributes exposing (..)
@@ -15,40 +14,55 @@ import Matrix exposing (..)
 view : Model -> Svg Msg
 view model =
   let
-    content = List.append (visualizeMatrix model.definition model.matrix) [
+    def = model.definition
+    winds = model.winds
+    matrix = model.matrix
+
+    content = List.append (visualizeModel model) [
+      -- TODO: should be visualized inside visualizeModel
       Svg.text_ [x "50", y "35", fontSize "35px"][Svg.text ("Score: " ++ toString model.topscore)]
     ]
   in
     svg [ viewBox "0 0 1500 1500", Svg.Attributes.width "1000px" ] content 
   
-    
-        
 
 -- Visualizers
 
-visualizeMatrix : Definition -> Matrix Element -> List(Svg Msg)
-visualizeMatrix definition matrix =
+visualizeModel : Model -> List(Svg Msg)
+visualizeModel model  =
     let 
-        superMatrix = 
-            Matrix.mapWithLocation (visualizeElement definition) matrix 
-            |> Matrix.flatten
+      matrix = model.matrix
+
+      superMatrix = 
+          Matrix.mapWithLocation (visualizeElement model) matrix 
+          |> Matrix.flatten
     in
-        superMatrix
+      superMatrix
      
 
-visualizeElement : Definition -> Location -> Element -> Svg msg
-visualizeElement definition location element =
+visualizeElement : Model -> Location -> Element -> Svg msg
+visualizeElement model location element =
   let
-    width_ = toString (definition.rectSize)
-    height_ = width_
+    definition = model.definition
+    winds = model.winds
+    milliticks = model.milliticks
 
-    -- Distance between drawing points of 2 recangles
-    dist = definition.rectSize + definition.margin // 2
     xloc = Tuple.first location
     yloc = Tuple.second location
-    x_ = toString (dist * xloc + definition.offsetX) 
-    y_ = toString (dist * yloc + definition.offsetY)
-    r = toString (definition.radius)
+
+    -- Distance between drawing points of 2 recangles
+    dist = definition.rectSize + definition.margin
+
+    staticShape = 
+      Shape
+        {- x -} ((dist * xloc + definition.offsetX) |> toFloat)
+        {- y -} ((dist * yloc + definition.offsetY) |> toFloat)
+        {- width -} (definition.rectSize |> toFloat)
+        {- height -} (definition.rectSize |> toFloat)
+        {- rx -} (definition.radius |> toFloat)
+        {- ry -} (definition.radius |> toFloat)
+    
+    shape = windShape model staticShape
 
     -- Apples are animated
     innerSvg = case element of 
@@ -58,14 +72,37 @@ visualizeElement definition location element =
   in
     -- TODO: add style
     rect 
-    [ x x_
-    , y y_
-    , rx r
-    , ry r
-    , Svg.Attributes.width width_
-    , Svg.Attributes.height height_
+    [ shape.x |> toString |> x 
+    , shape.y |> toString |> y 
+    , shape.rx |> toString |> rx 
+    , shape.ry |> toString |> ry 
+    , shape.width  |> toString |> Svg.Attributes.width 
+    , shape.height |> toString |> Svg.Attributes.height 
     , Html.Attributes.style (styleOf element)
     ] innerSvg
+
+windShape : Model -> Shape -> Shape
+windShape model shape = 
+  let
+    waveX = model.winds.nosiseFunctionX
+    waveY = model.winds.nosiseFunctionY
+    milliticks = model.milliticks
+
+    frameRateDiv = 17
+
+    shapeDiv = 
+      toFloat (model.definition.margin + model.definition.rectSize)
+
+    floaticks = toFloat (milliticks // frameRateDiv)
+    amplitude = model.winds.amplitude
+  in
+    Shape 
+    ( shape.x + amplitude * ( waveX ( (shape.x / shapeDiv) + floaticks ) ) )
+    ( shape.y + amplitude * ( waveY ( (shape.y / shapeDiv) + floaticks ) ) )
+    ( shape.width + ( amplitude / 2 ) * ( waveX ( shape.width + floaticks ) ) )
+    ( shape.height + ( amplitude / 2 ) * ( waveY ( shape.height + floaticks ) ) )
+    ( shape.rx + 0 * ( waveX ( shape.rx + floaticks ) ) )
+    ( shape.ry + 0 * ( waveY ( shape.ry + floaticks ) ) )
 
 -- Animations
 snakeAnimation : List (Svg msg)

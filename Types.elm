@@ -13,6 +13,7 @@ type Msg =
       KeyDown KeyCode
     | KeyUp KeyCode
     | Tick Time
+    | Millitick Time
     | NewApple Location
 
 type SnakeDisplay = Regular | Sick | None
@@ -47,24 +48,40 @@ type alias Definition =
     , radius : Int
     -- Matrix length (width and height)
     , len : Int
+    -- can bounce into wall?
+    , cyclicmode : Bool
     }
 
 type alias Model = 
     { definition : Definition
-    , matrix : Matrix.Matrix Element
+    , matrix : Matrix Element
     , snake : Snake
     , apple : Maybe Apple
     , status : GameStatus
     -- Wierd variables that affect the psychodalic effects
     , winds : Winds
     , topscore : Score
+    , milliticks : Int
     }
 
 type alias Winds = 
     { timeMultiplier : Float
     -- Will be used as a unit to add to cosinus function that applied on each rect size
-    , noiseMatrix : Matrix Float
+    , amplitude : Float
+    , nosiseFunctionX : WaveFunction
+    , nosiseFunctionY : WaveFunction
     }
+
+type alias Shape = 
+  { x : Float
+  , y : Float
+  , width : Float
+  , height : Float
+  , rx : Float
+  , ry : Float
+  }
+
+type alias WaveFunction = Float -> Float
 
 type alias KeyCode = Int
 

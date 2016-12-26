@@ -9728,17 +9728,21 @@ var _user$project$Types$Snake = F4(
 var _user$project$Types$Apple = function (a) {
 	return {location: a};
 };
-var _user$project$Types$Definition = F6(
-	function (a, b, c, d, e, f) {
-		return {offsetX: a, offsetY: b, margin: c, rectSize: d, radius: e, len: f};
-	});
-var _user$project$Types$Model = F7(
+var _user$project$Types$Definition = F7(
 	function (a, b, c, d, e, f, g) {
-		return {definition: a, matrix: b, snake: c, apple: d, status: e, winds: f, topscore: g};
+		return {offsetX: a, offsetY: b, margin: c, rectSize: d, radius: e, len: f, cyclicmode: g};
 	});
-var _user$project$Types$Winds = F2(
-	function (a, b) {
-		return {timeMultiplier: a, noiseMatrix: b};
+var _user$project$Types$Model = F8(
+	function (a, b, c, d, e, f, g, h) {
+		return {definition: a, matrix: b, snake: c, apple: d, status: e, winds: f, topscore: g, milliticks: h};
+	});
+var _user$project$Types$Winds = F4(
+	function (a, b, c, d) {
+		return {timeMultiplier: a, amplitude: b, nosiseFunctionX: c, nosiseFunctionY: d};
+	});
+var _user$project$Types$Shape = F6(
+	function (a, b, c, d, e, f) {
+		return {x: a, y: b, width: c, height: d, rx: e, ry: f};
 	});
 var _user$project$Types$AppleElement = {ctor: 'AppleElement'};
 var _user$project$Types$SnakeElement = function (a) {
@@ -9751,6 +9755,9 @@ var _user$project$Types$GameOver = function (a) {
 var _user$project$Types$Play = {ctor: 'Play'};
 var _user$project$Types$NewApple = function (a) {
 	return {ctor: 'NewApple', _0: a};
+};
+var _user$project$Types$Millitick = function (a) {
+	return {ctor: 'Millitick', _0: a};
 };
 var _user$project$Types$Tick = function (a) {
 	return {ctor: 'Tick', _0: a};
@@ -9898,10 +9905,68 @@ var _user$project$State$subscriptions = function (model) {
 				_1: {
 					ctor: '::',
 					_0: A2(_elm_lang$core$Time$every, _elm_lang$core$Time$second * model.winds.timeMultiplier, _user$project$Types$Tick),
-					_1: {ctor: '[]'}
+					_1: {
+						ctor: '::',
+						_0: A2(_elm_lang$core$Time$every, _elm_lang$core$Time$millisecond, _user$project$Types$Millitick),
+						_1: {ctor: '[]'}
+					}
 				}
 			}
 		});
+};
+var _user$project$State$cyclicmodeToDeathPredicates = function (cyclicmode) {
+	return cyclicmode ? {
+		ctor: '::',
+		_0: _user$project$State$isEatingSelf,
+		_1: {ctor: '[]'}
+	} : {
+		ctor: '::',
+		_0: function (_p4) {
+			return !_user$project$State$isInBorders(_p4);
+		},
+		_1: {
+			ctor: '::',
+			_0: _user$project$State$isEatingSelf,
+			_1: {ctor: '[]'}
+		}
+	};
+};
+var _user$project$State$stepCoordinateCyclic = F3(
+	function (naiveHead, lengthx, lengthy) {
+		var y = _elm_lang$core$Tuple$second(naiveHead);
+		var newY = A2(_elm_lang$core$Basics_ops['%'], y, lengthy);
+		var x = _elm_lang$core$Tuple$first(naiveHead);
+		var newX = A2(_elm_lang$core$Basics_ops['%'], x, lengthx);
+		return A2(_chendrix$elm_matrix$Matrix$loc, newX, newY);
+	});
+var _user$project$State$stepSnakeHead = function (model) {
+	var mayhead = A2(
+		_elm_lang$core$Array$get,
+		0,
+		_elm_lang$core$Array$fromList(model.snake.body));
+	var head = function () {
+		var _p5 = mayhead;
+		if (_p5.ctor === 'Just') {
+			return _p5._0;
+		} else {
+			return A2(_chendrix$elm_matrix$Matrix$loc, 0, 0);
+		}
+	}();
+	var naiveHead = A2(_user$project$State$addDirection, head, model.snake.direction);
+	var x = _elm_lang$core$Tuple$first(naiveHead);
+	var y = _elm_lang$core$Tuple$second(naiveHead);
+	var isInBoard = (_elm_lang$core$Native_Utils.cmp(x, 0) > -1) && ((_elm_lang$core$Native_Utils.cmp(y, 0) > -1) && ((_elm_lang$core$Native_Utils.cmp(
+		x,
+		_chendrix$elm_matrix$Matrix$colCount(model.matrix)) < 0) && (_elm_lang$core$Native_Utils.cmp(
+		y,
+		_chendrix$elm_matrix$Matrix$rowCount(model.matrix)) < 0)));
+	if ((!model.definition.cyclicmode) || isInBoard) {
+		return naiveHead;
+	} else {
+		var lengthy = _chendrix$elm_matrix$Matrix$rowCount(model.matrix);
+		var lengthx = _chendrix$elm_matrix$Matrix$colCount(model.matrix);
+		return A3(_user$project$State$stepCoordinateCyclic, naiveHead, lengthx, lengthy);
+	}
 };
 var _user$project$State$stepWinds = F2(
 	function (model, ate) {
@@ -9912,12 +9977,12 @@ var _user$project$State$stepWinds = F2(
 			{timeMultiplier: model.winds.timeMultiplier * multiplier});
 	});
 var _user$project$State$stepSnake = function (model) {
+	var newHead = _user$project$State$stepSnakeHead(model);
 	var snake = model.snake;
 	var body = snake.body;
 	var length = _elm_lang$core$List$length(body);
 	var currentHead = _user$project$State$certainLocation(
 		_elm_lang$core$List$head(body));
-	var newHead = A2(_user$project$State$addDirection, currentHead, model.snake.direction);
 	var exceptTail = A2(_elm_lang$core$List$take, length - 1, body);
 	var hungryNewBody = {ctor: '::', _0: newHead, _1: exceptTail};
 	var prevTail = _user$project$State$certainLocation(
@@ -9943,24 +10008,22 @@ var _user$project$State$stepSnake = function (model) {
 	return eating ? fullNewSnake : hungryNewSnake;
 };
 var _user$project$State$stepGameStatus = function (model) {
-	var _p4 = model.status;
-	if (_p4.ctor === 'GameOver') {
-		return _user$project$Types$GameOver(_p4._0 + 1);
+	var _p6 = model.status;
+	if (_p6.ctor === 'GameOver') {
+		return _user$project$Types$GameOver(_p6._0 + 1);
 	} else {
+		var predicatesToDie = _user$project$State$cyclicmodeToDeathPredicates(model.definition.cyclicmode);
 		var fictiveFuture = _elm_lang$core$Native_Utils.update(
 			model,
 			{
 				snake: _user$project$State$stepSnake(model)
 			});
-		var reasonsToDie = {
-			ctor: '::',
-			_0: !_user$project$State$isInBorders(fictiveFuture),
-			_1: {
-				ctor: '::',
-				_0: _user$project$State$isEatingSelf(fictiveFuture),
-				_1: {ctor: '[]'}
-			}
-		};
+		var reasonsToDie = A2(
+			_elm_lang$core$List$map,
+			function (predicate) {
+				return predicate(fictiveFuture);
+			},
+			predicatesToDie);
 		var shouldDie = A2(
 			_elm_lang$core$List$any,
 			function (b) {
@@ -10009,12 +10072,12 @@ var _user$project$State$stepScore = function (model) {
 var _user$project$State$stepDeathSnake = function (model) {
 	var snake = model.snake;
 	var snakeDisplay = function () {
-		var _p5 = model.status;
-		if (_p5.ctor === 'Play') {
+		var _p7 = model.status;
+		if (_p7.ctor === 'Play') {
 			return _user$project$Types$Regular;
 		} else {
 			return _elm_lang$core$Native_Utils.eq(
-				A2(_elm_lang$core$Basics_ops['%'], _p5._0, 2),
+				A2(_elm_lang$core$Basics_ops['%'], _p7._0, 2),
 				0) ? _user$project$Types$None : _user$project$Types$Sick;
 		}
 	}();
@@ -10022,18 +10085,21 @@ var _user$project$State$stepDeathSnake = function (model) {
 		snake,
 		{display: snakeDisplay});
 };
-var _user$project$State$initWinds = F3(
-	function (timeMult, width, heigth) {
-		return A2(
-			_user$project$Types$Winds,
-			timeMult,
-			A3(
-				_chendrix$elm_matrix$Matrix$matrix,
-				width,
-				heigth,
-				function (location) {
-					return 0.0;
-				}));
+var _user$project$State$stepMillitick = function (model) {
+	return model.milliticks + 1;
+};
+var _user$project$State$stepAmplitude = function (model) {
+	var max = 1.6;
+	var min = 0;
+	var cycletime = _elm_lang$core$Basics$toFloat(5 * 1000);
+	var degree = ((_elm_lang$core$Basics$toFloat(model.milliticks) / cycletime) * _elm_lang$core$Basics$pi) * 2;
+	var zeroTwoRange = 1 + _elm_lang$core$Basics$cos(_elm_lang$core$Basics$pi + degree);
+	var minMaxRange = ((zeroTwoRange / 2) * (max - min)) + min;
+	return minMaxRange;
+};
+var _user$project$State$initWinds = F5(
+	function (timeMult, width, heigth, waveX, waveY) {
+		return A4(_user$project$Types$Winds, timeMult, 0.5, waveX, waveY);
 	});
 var _user$project$State$initApple = F2(
 	function (x, y) {
@@ -10053,7 +10119,7 @@ var _user$project$State$initSnake = F2(
 			display: _user$project$Types$Regular
 		};
 	});
-var _user$project$State$initDefinition = {offsetX: 50, offsetY: 50, margin: 15, rectSize: 40, radius: 15, len: 12};
+var _user$project$State$initDefinition = {offsetX: 50, offsetY: 50, margin: 7, rectSize: 40, radius: 15, len: 12, cyclicmode: true};
 var _user$project$State$initMatrix = F2(
 	function (width, height) {
 		return A3(
@@ -10071,54 +10137,59 @@ var _user$project$State$init = function () {
 	var matrix = A2(_user$project$State$initMatrix, l, l);
 	return {
 		ctor: '_Tuple2',
-		_0: A7(
+		_0: A8(
 			_user$project$Types$Model,
 			definition,
 			matrix,
 			A2(_user$project$State$initSnake, p, p),
 			_elm_lang$core$Maybe$Nothing,
 			_user$project$Types$Play,
-			A3(_user$project$State$initWinds, 0.25, l, l),
+			A5(_user$project$State$initWinds, 0.25, l, l, _elm_lang$core$Basics$sin, _elm_lang$core$Basics$sin),
+			0,
 			0),
 		_1: _user$project$State$commandRandomApple(matrix)
 	};
 }();
-var _user$project$State$reInit = F2(
-	function (mayapp, score) {
-		var initializedModelCommand = _user$project$State$init;
-		var tempModel = _elm_lang$core$Tuple$first(initializedModelCommand);
-		var newMatrix = function () {
-			var _p6 = mayapp;
-			if (_p6.ctor === 'Nothing') {
-				return tempModel.matrix;
-			} else {
-				return A3(_chendrix$elm_matrix$Matrix$set, _p6._0.location, _user$project$Types$AppleElement, tempModel.matrix);
-			}
-		}();
-		var command = function () {
-			var _p7 = mayapp;
-			if (_p7.ctor === 'Nothing') {
-				return _user$project$State$commandRandomApple(newMatrix);
-			} else {
-				return _elm_lang$core$Platform_Cmd$none;
-			}
-		}();
-		var model = _elm_lang$core$Native_Utils.update(
-			tempModel,
-			{matrix: newMatrix, apple: mayapp, topscore: score});
-		return {ctor: '_Tuple2', _0: model, _1: command};
-	});
+var _user$project$State$reInit = function (model) {
+	var newWind = {};
+	var initializedModelCommand = _user$project$State$init;
+	var tempModel = _elm_lang$core$Tuple$first(initializedModelCommand);
+	var winds = model.winds;
+	var milliticks = model.milliticks;
+	var score = model.topscore;
+	var mayapp = model.apple;
+	var newMatrix = function () {
+		var _p8 = mayapp;
+		if (_p8.ctor === 'Nothing') {
+			return tempModel.matrix;
+		} else {
+			return A3(_chendrix$elm_matrix$Matrix$set, _p8._0.location, _user$project$Types$AppleElement, tempModel.matrix);
+		}
+	}();
+	var newModel = _elm_lang$core$Native_Utils.update(
+		tempModel,
+		{matrix: newMatrix, apple: mayapp, topscore: score, milliticks: milliticks, winds: winds});
+	var newCommand = function () {
+		var _p9 = mayapp;
+		if (_p9.ctor === 'Nothing') {
+			return _user$project$State$commandRandomApple(newMatrix);
+		} else {
+			return _elm_lang$core$Platform_Cmd$none;
+		}
+	}();
+	return {ctor: '_Tuple2', _0: newModel, _1: newCommand};
+};
 var _user$project$State$step = function (model) {
 	var newStatus = _user$project$State$stepGameStatus(model);
-	var _p8 = newStatus;
-	if ((_p8.ctor === 'GameOver') && (_p8._0 === 9)) {
-		return A2(_user$project$State$reInit, model.apple, model.topscore);
+	var _p10 = newStatus;
+	if ((_p10.ctor === 'GameOver') && (_p10._0 === 9)) {
+		return _user$project$State$reInit(model);
 	} else {
 		var newScore = _user$project$State$stepScore(model);
 		var newMatrix = _user$project$State$stepMatrix(model);
 		var newSnake = function () {
-			var _p9 = newStatus;
-			if (_p9.ctor === 'Play') {
+			var _p11 = newStatus;
+			if (_p11.ctor === 'Play') {
 				return _user$project$State$stepSnake(model);
 			} else {
 				return _user$project$State$stepDeathSnake(model);
@@ -10140,15 +10211,15 @@ var _user$project$State$step = function (model) {
 };
 var _user$project$State$update = F2(
 	function (msg, model) {
-		var _p10 = msg;
-		switch (_p10.ctor) {
+		var _p12 = msg;
+		switch (_p12.ctor) {
 			case 'KeyDown':
-				var _p11 = model.status;
-				if (_p11.ctor === 'GameOver') {
+				var _p13 = model.status;
+				if (_p13.ctor === 'GameOver') {
 					return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
 				} else {
 					var snake = model.snake;
-					var direction = A2(_user$project$State$keycodeToDirection, snake.direction, _p10._0);
+					var direction = A2(_user$project$State$keycodeToDirection, snake.direction, _p12._0);
 					var head = _user$project$State$snakeHead(snake);
 					var throat = _user$project$State$snakeThroat(snake);
 					var snakeInNewDirection = _elm_lang$core$Native_Utils.update(
@@ -10171,15 +10242,29 @@ var _user$project$State$update = F2(
 				var newModel = _elm_lang$core$Tuple$first(newModelNewCommand);
 				var newCommand = _elm_lang$core$Tuple$second(newModelNewCommand);
 				return {ctor: '_Tuple2', _0: newModel, _1: newCommand};
-			default:
+			case 'NewApple':
 				return {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
 						{
 							apple: _elm_lang$core$Maybe$Just(
-								_user$project$Types$Apple(_p10._0))
+								_user$project$Types$Apple(_p12._0))
 						}),
+					_1: _elm_lang$core$Platform_Cmd$none
+				};
+			default:
+				var winds = model.winds;
+				var newMilliticks = _user$project$State$stepMillitick(model);
+				var newAmplitude = _user$project$State$stepAmplitude(model);
+				var newWinds = _elm_lang$core$Native_Utils.update(
+					winds,
+					{amplitude: newAmplitude});
+				return {
+					ctor: '_Tuple2',
+					_0: _elm_lang$core$Native_Utils.update(
+						model,
+						{milliticks: newMilliticks, winds: newWinds}),
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
 		}
@@ -10302,8 +10387,26 @@ var _user$project$View$snakeAnimation = {
 		{ctor: '[]'}),
 	_1: {ctor: '[]'}
 };
+var _user$project$View$windShape = F2(
+	function (model, shape) {
+		var amplitude = model.winds.amplitude;
+		var shapeDiv = _elm_lang$core$Basics$toFloat(model.definition.margin + model.definition.rectSize);
+		var frameRateDiv = 17;
+		var milliticks = model.milliticks;
+		var floaticks = _elm_lang$core$Basics$toFloat((milliticks / frameRateDiv) | 0);
+		var waveY = model.winds.nosiseFunctionY;
+		var waveX = model.winds.nosiseFunctionX;
+		return A6(
+			_user$project$Types$Shape,
+			shape.x + (amplitude * waveX((shape.x / shapeDiv) + floaticks)),
+			shape.y + (amplitude * waveY((shape.y / shapeDiv) + floaticks)),
+			shape.width + ((amplitude / 2) * waveX(shape.width + floaticks)),
+			shape.height + ((amplitude / 2) * waveY(shape.height + floaticks)),
+			shape.rx + (0 * waveX(shape.rx + floaticks)),
+			shape.ry + (0 * waveY(shape.ry + floaticks)));
+	});
 var _user$project$View$visualizeElement = F3(
-	function (definition, location, element) {
+	function (model, location, element) {
 		var innerSvg = function () {
 			var _p1 = element;
 			switch (_p1.ctor) {
@@ -10315,34 +10418,47 @@ var _user$project$View$visualizeElement = F3(
 					return {ctor: '[]'};
 			}
 		}();
-		var r = _elm_lang$core$Basics$toString(definition.radius);
 		var yloc = _elm_lang$core$Tuple$second(location);
 		var xloc = _elm_lang$core$Tuple$first(location);
-		var dist = definition.rectSize + ((definition.margin / 2) | 0);
-		var x_ = _elm_lang$core$Basics$toString((dist * xloc) + definition.offsetX);
-		var y_ = _elm_lang$core$Basics$toString((dist * yloc) + definition.offsetY);
-		var width_ = _elm_lang$core$Basics$toString(definition.rectSize);
-		var height_ = width_;
+		var milliticks = model.milliticks;
+		var winds = model.winds;
+		var definition = model.definition;
+		var dist = definition.rectSize + definition.margin;
+		var staticShape = A6(
+			_user$project$Types$Shape,
+			_elm_lang$core$Basics$toFloat((dist * xloc) + definition.offsetX),
+			_elm_lang$core$Basics$toFloat((dist * yloc) + definition.offsetY),
+			_elm_lang$core$Basics$toFloat(definition.rectSize),
+			_elm_lang$core$Basics$toFloat(definition.rectSize),
+			_elm_lang$core$Basics$toFloat(definition.radius),
+			_elm_lang$core$Basics$toFloat(definition.radius));
+		var shape = A2(_user$project$View$windShape, model, staticShape);
 		return A2(
 			_elm_lang$svg$Svg$rect,
 			{
 				ctor: '::',
-				_0: _elm_lang$svg$Svg_Attributes$x(x_),
+				_0: _elm_lang$svg$Svg_Attributes$x(
+					_elm_lang$core$Basics$toString(shape.x)),
 				_1: {
 					ctor: '::',
-					_0: _elm_lang$svg$Svg_Attributes$y(y_),
+					_0: _elm_lang$svg$Svg_Attributes$y(
+						_elm_lang$core$Basics$toString(shape.y)),
 					_1: {
 						ctor: '::',
-						_0: _elm_lang$svg$Svg_Attributes$rx(r),
+						_0: _elm_lang$svg$Svg_Attributes$rx(
+							_elm_lang$core$Basics$toString(shape.rx)),
 						_1: {
 							ctor: '::',
-							_0: _elm_lang$svg$Svg_Attributes$ry(r),
+							_0: _elm_lang$svg$Svg_Attributes$ry(
+								_elm_lang$core$Basics$toString(shape.ry)),
 							_1: {
 								ctor: '::',
-								_0: _elm_lang$svg$Svg_Attributes$width(width_),
+								_0: _elm_lang$svg$Svg_Attributes$width(
+									_elm_lang$core$Basics$toString(shape.width)),
 								_1: {
 									ctor: '::',
-									_0: _elm_lang$svg$Svg_Attributes$height(height_),
+									_0: _elm_lang$svg$Svg_Attributes$height(
+										_elm_lang$core$Basics$toString(shape.height)),
 									_1: {
 										ctor: '::',
 										_0: _elm_lang$html$Html_Attributes$style(
@@ -10357,19 +10473,19 @@ var _user$project$View$visualizeElement = F3(
 			},
 			innerSvg);
 	});
-var _user$project$View$visualizeMatrix = F2(
-	function (definition, matrix) {
-		var superMatrix = _chendrix$elm_matrix$Matrix$flatten(
-			A2(
-				_chendrix$elm_matrix$Matrix$mapWithLocation,
-				_user$project$View$visualizeElement(definition),
-				matrix));
-		return superMatrix;
-	});
+var _user$project$View$visualizeModel = function (model) {
+	var matrix = model.matrix;
+	var superMatrix = _chendrix$elm_matrix$Matrix$flatten(
+		A2(
+			_chendrix$elm_matrix$Matrix$mapWithLocation,
+			_user$project$View$visualizeElement(model),
+			matrix));
+	return superMatrix;
+};
 var _user$project$View$view = function (model) {
 	var content = A2(
 		_elm_lang$core$List$append,
-		A2(_user$project$View$visualizeMatrix, model.definition, model.matrix),
+		_user$project$View$visualizeModel(model),
 		{
 			ctor: '::',
 			_0: A2(
@@ -10398,6 +10514,9 @@ var _user$project$View$view = function (model) {
 				}),
 			_1: {ctor: '[]'}
 		});
+	var matrix = model.matrix;
+	var winds = model.winds;
+	var def = model.definition;
 	return A2(
 		_elm_lang$svg$Svg$svg,
 		{
