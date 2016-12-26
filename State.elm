@@ -41,26 +41,26 @@ reInit model =
       mayapp = model.apple
       score = model.topscore
       milliticks = model.milliticks
-      winds = model.winds
 
       initializedModelCommand = init
       tempModel = Tuple.first initializedModelCommand
+
+      winds = tempModel.winds
+      newWinds = { winds
+                 | amplitude = model.winds.amplitude }
 
       newMatrix = 
         case mayapp of
           Nothing -> tempModel.matrix
           -- place apple in matrix
           Just apple -> Matrix.set apple.location AppleElement tempModel.matrix
-      
-
-      newWind = { }
 
       newModel = { tempModel
               | matrix = newMatrix 
               , apple = mayapp
               , topscore = score
               , milliticks = milliticks 
-              , winds = winds}
+              , winds = newWinds}
 
       newCommand = 
         case mayapp of 
@@ -205,7 +205,7 @@ stepAmplitude model =
     zeroTwoRange = 1 + (cos (pi + degree))
 
     min = 0
-    max = 1.6
+    max = 1.3
 
     minMaxRange = ( ( zeroTwoRange / 2 ) * ( max-min ) ) + min
   in

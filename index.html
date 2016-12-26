@@ -10089,7 +10089,7 @@ var _user$project$State$stepMillitick = function (model) {
 	return model.milliticks + 1;
 };
 var _user$project$State$stepAmplitude = function (model) {
-	var max = 1.6;
+	var max = 1.3;
 	var min = 0;
 	var cycletime = _elm_lang$core$Basics$toFloat(5 * 1000);
 	var degree = ((_elm_lang$core$Basics$toFloat(model.milliticks) / cycletime) * _elm_lang$core$Basics$pi) * 2;
@@ -10151,10 +10151,12 @@ var _user$project$State$init = function () {
 	};
 }();
 var _user$project$State$reInit = function (model) {
-	var newWind = {};
 	var initializedModelCommand = _user$project$State$init;
 	var tempModel = _elm_lang$core$Tuple$first(initializedModelCommand);
-	var winds = model.winds;
+	var winds = tempModel.winds;
+	var newWinds = _elm_lang$core$Native_Utils.update(
+		winds,
+		{amplitude: model.winds.amplitude});
 	var milliticks = model.milliticks;
 	var score = model.topscore;
 	var mayapp = model.apple;
@@ -10168,7 +10170,7 @@ var _user$project$State$reInit = function (model) {
 	}();
 	var newModel = _elm_lang$core$Native_Utils.update(
 		tempModel,
-		{matrix: newMatrix, apple: mayapp, topscore: score, milliticks: milliticks, winds: winds});
+		{matrix: newMatrix, apple: mayapp, topscore: score, milliticks: milliticks, winds: newWinds});
 	var newCommand = function () {
 		var _p9 = mayapp;
 		if (_p9.ctor === 'Nothing') {
