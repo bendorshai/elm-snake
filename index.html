@@ -9768,7 +9768,11 @@ var _user$project$Types$KeyUp = function (a) {
 var _user$project$Types$KeyDown = function (a) {
 	return {ctor: 'KeyDown', _0: a};
 };
+var _user$project$Types$Comeup = function (a) {
+	return {ctor: 'Comeup', _0: a};
+};
 var _user$project$Types$None = {ctor: 'None'};
+var _user$project$Types$Invisible = {ctor: 'Invisible'};
 var _user$project$Types$Sick = {ctor: 'Sick'};
 var _user$project$Types$Regular = {ctor: 'Regular'};
 var _user$project$State$countValueInList = F2(
@@ -10078,7 +10082,7 @@ var _user$project$State$stepDeathSnake = function (model) {
 		} else {
 			return _elm_lang$core$Native_Utils.eq(
 				A2(_elm_lang$core$Basics_ops['%'], _p7._0, 2),
-				0) ? _user$project$Types$None : _user$project$Types$Sick;
+				0) ? _user$project$Types$Invisible : _user$project$Types$Sick;
 		}
 	}();
 	return _elm_lang$core$Native_Utils.update(
@@ -10293,7 +10297,7 @@ var _user$project$View$cellStyle = function (color) {
 var _user$project$View$appleStyle = _user$project$View$cellStyle('red');
 var _user$project$View$voidStyle = _user$project$View$cellStyle('green');
 var _user$project$View$snakeStyle = function (display) {
-	return _elm_lang$core$Native_Utils.eq(display, _user$project$Types$None) ? _user$project$View$voidStyle : (_elm_lang$core$Native_Utils.eq(display, _user$project$Types$Sick) ? _user$project$View$cellStyle('grey') : _user$project$View$cellStyle('black'));
+	return _elm_lang$core$Native_Utils.eq(display, _user$project$Types$Invisible) ? _user$project$View$voidStyle : (_elm_lang$core$Native_Utils.eq(display, _user$project$Types$Sick) ? _user$project$View$cellStyle('grey') : _user$project$View$cellStyle('black'));
 };
 var _user$project$View$styleOf = function (element) {
 	var _p0 = element;

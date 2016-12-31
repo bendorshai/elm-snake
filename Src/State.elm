@@ -1,7 +1,9 @@
-module State exposing (..)
+module Src.State exposing (..)
 
 -- Internal imports
-import Types exposing (..)
+import Src.Types exposing (..)
+import Src.Init exposing (..)
+import Src.Api exposing (..)
 
 -- External imports
 import Time exposing (..)
@@ -10,96 +12,6 @@ import Keyboard exposing (..)
 import Random exposing (..)
 import Array
 
--- Init functions
-
-init : ( Model, Cmd Msg )
-init  =
-    let
-      definition = initDefinition
-
-      l = definition.len
-      -- position of snake
-      p = l // 2
-
-      matrix = (initMatrix l l) 
-    in
-  ( Model 
-        definition 
-        matrix
-        (initSnake p p) 
-        Nothing -- apple
-        Play
-        (initWinds 0.25 l l Basics.sin Basics.sin)
-        {- score -} 0
-        {- tick -} 0
-    , commandRandomApple matrix)
-
-reInit : Model -> ( Model, Cmd Msg )
-reInit model =
-    let
-
-      mayapp = model.apple
-      score = model.topscore
-      milliticks = model.milliticks
-
-      initializedModelCommand = init
-      tempModel = Tuple.first initializedModelCommand
-
-      winds = tempModel.winds
-      newWinds = { winds
-                 | amplitude = model.winds.amplitude }
-
-      newMatrix = 
-        case mayapp of
-          Nothing -> tempModel.matrix
-          -- place apple in matrix
-          Just apple -> Matrix.set apple.location AppleElement tempModel.matrix
-
-      newModel = { tempModel
-              | matrix = newMatrix 
-              , apple = mayapp
-              , topscore = score
-              , milliticks = milliticks 
-              , winds = newWinds}
-
-      newCommand = 
-        case mayapp of 
-          Nothing -> commandRandomApple newMatrix
-          Just apple -> Cmd.none 
-    in
-  ( newModel, newCommand )
-
-initMatrix : Int -> Int -> Matrix Element
-initMatrix width height = 
-    matrix width height (\location -> VoidElement)
-
-initDefinition : Definition
-initDefinition = 
-    { offsetX = 50
-    , offsetY = 50
-    , margin = 7
-    , rectSize = 40
-    , radius = 15
-    , len = 12
-    , cyclicmode = True
-    }
-
-initSnake : Int -> Int -> Snake 
-initSnake x y = 
-    { body = [loc x y]
-    , direction = loc -1 0
-    , trail = loc x y 
-    , display = Regular
-    }
-
-initApple : Int -> Int -> Apple
-initApple x y =
-    Types.Apple (loc x y) 
-
-initWinds : Float -> Int -> Int -> WaveFunction -> WaveFunction -> Winds
-initWinds timeMult width heigth waveX waveY = 
-    Winds timeMult 0.5 waveX waveY
-
 -- UPDATE
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -107,7 +19,7 @@ update msg model =
     case msg of
         -- Update snake's direction
         KeyDown keyCode ->
-            case model.status of 
+            case model.game.status of 
                 -- Keys don't work when game is over
                 GameOver _ -> ( model, Cmd.none )
                 Play ->
@@ -126,8 +38,6 @@ update msg model =
                             )
                         else 
                             ( model, Cmd.none )
-        KeyUp keyCode ->
-            ( model, Cmd.none )
         Tick time -> 
                 let
                     {- Step the whole world a bit, recive a new model of the world,
@@ -137,9 +47,9 @@ update msg model =
                     newCommand = Tuple.second newModelNewCommand
                 in
                     ( newModel, newCommand )
-        NewApple location -> 
+        NewFood location -> 
             ( { model
-              | apple = Just (Apple location) }
+              | apple = Just (Food location) }
               , Cmd.none )
         Millitick time ->
           let
@@ -151,8 +61,7 @@ update msg model =
 
           in
           ( { model
-            | milliticks = newMilliticks
-            , winds = newWinds }
+            | milliticks = newMilliticks}
             , Cmd.none )
 
 -- Steppers
@@ -179,7 +88,6 @@ step model =
             apple = if ate then Nothing else model.apple
 
             newMatrix = stepMatrix model
-            newWinds = stepWinds model ate
             newScore = stepScore model
           in
             ( { model 
@@ -187,7 +95,6 @@ step model =
               , matrix = newMatrix
               , status = newStatus
               , apple = apple 
-              , winds = newWinds
               , topscore = newScore 
               }
             , stepCommand model ate
@@ -222,7 +129,7 @@ stepDeathSnake model =
         snakeDisplay = case model.status of
             -- should not happen 
             Play -> Regular
-            GameOver n -> if n % 2 == 0 then None else Sick
+            GameOver n -> if n % 2 == 0 then Invisible else Sick
         
         snake = model.snake
     in
@@ -238,7 +145,7 @@ stepCommand model ate =
     if ate
     then
         Cmd.batch 
-          [ Random.generate NewApple (randomLocationGenerator model.matrix)
+          [ commandRandomApple model.game.matrix
           , Cmd.none
           ]
     else
@@ -248,7 +155,7 @@ stepCommand model ate =
     
 stepMatrix : Model -> Matrix Element
 stepMatrix model = 
-    Matrix.mapWithLocation (\loc elem -> locationToElement model loc) model.matrix 
+    Matrix.mapWithLocation (\loc elem -> locationToElement model loc) model.game.matrix 
 
 stepSnake : Model -> Snake
 stepSnake model =
@@ -288,6 +195,7 @@ stepSnake model =
         else
             hungryNewSnake
 
+{-
 stepWinds : Model -> Bool -> Winds
 stepWinds model ate= 
     let 
@@ -298,6 +206,7 @@ stepWinds model ate=
     in
         { winds 
         | timeMultiplier = model.winds.timeMultiplier * multiplier }
+        -}
 
 stepSnakeHead : Model -> Location
 stepSnakeHead model = 
@@ -316,8 +225,8 @@ stepSnakeHead model =
     isInBoard = 
       x >= 0 &&
       y >= 0 &&
-      x < colCount model.matrix &&
-      y < rowCount model.matrix
+      x < colCount model.game.matrix &&
+      y < rowCount model.game.matrix
 
   in
     -- If the next naive step of snake will stay on board 
@@ -330,8 +239,8 @@ stepSnakeHead model =
     -- else, it is cyclic mode and out of board step
     else
       let
-        lengthx = colCount model.matrix
-        lengthy = rowCount model.matrix 
+        lengthx = colCount model.game.matrix
+        lengthy = rowCount model.game.matrix 
       in
         stepCoordinateCyclic naiveHead lengthx lengthy
 
@@ -392,13 +301,15 @@ cyclicmodeToDeathPredicates cyclicmode =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-
-    Sub.batch
-        [ Keyboard.downs Types.KeyDown
-        , Keyboard.ups Types.KeyUp
-        , every (second * model.winds.timeMultiplier) Tick
-        , every millisecond Millitick 
-        ]
+    let
+      fps = 35
+      frameSpan = millisecond / fps
+    in 
+      Sub.batch
+          [ Keyboard.downs KeyDown
+          , every (second * model.winds.timeMultiplier) Tick
+          , every frameSpan Frame 
+          ]
 
 -- Conversions 
 
@@ -408,7 +319,7 @@ certainLocation mayloc =
         Just location -> location
         Nothing -> loc 0 0
 
-keycodeToDirection :  Location -> Types.KeyCode -> Location
+keycodeToDirection :  Location -> KeyCode -> Location
 keycodeToDirection defaultDirection key = 
     let 
         w = 87
@@ -432,7 +343,7 @@ locationToElement model location =
     if List.member location model.snake.body
     then 
         SnakeElement model.snake.display
-    else if maybeAppleInLocaion model.apple location
+    else if maybeFoodInLocaion model.game.food location
     then 
         AppleElement
     else 
@@ -455,7 +366,7 @@ isInBorders model =
     let 
         mayloc = Matrix.get 
                     (snakeHead model.snake) 
-                    model.matrix
+                    model.game.matrix
     in case mayloc of 
         Just location -> True
         Nothing -> False 
@@ -473,17 +384,6 @@ isEatingSelf model =
     in
         -- is there a location of snake that appears more then once?  
         List.length repeatedLocation > 0
-        
--- Random Generators
-
-randomLocationGenerator : Matrix a -> Generator Location
-randomLocationGenerator matrix = 
-    let 
-        xGen = int 0 ((colCount matrix) - 1)
-        yGen = int 0 ((rowCount matrix) - 1)
-        randomPair = Random.pair xGen yGen
-    in
-        Random.map (\xy -> loc (Tuple.first xy) (Tuple.second xy)) randomPair
 
 -- Snake api
 
@@ -499,22 +399,6 @@ snakeThroat snake =
         |> Array.get 1
         |> certainLocation
 
--- Apple api
-maybeAppleInLocaion : Maybe Apple -> Location -> Bool
-maybeAppleInLocaion mayapple location = 
-    case mayapple of
-        Nothing -> False
-        Just apple -> apple.location == location 
-
-maybeAppleLocationIn : Maybe Apple -> List Location -> Bool
-maybeAppleLocationIn mayapple list =
-    case mayapple of 
-        Nothing -> False
-        Just apple -> List.member apple.location list
-
-commandRandomApple : Matrix Element -> Cmd Msg
-commandRandomApple matrix = 
-  Random.generate NewApple (randomLocationGenerator matrix) 
 
 -- Utils
 

@@ -1,7 +1,7 @@
-module View exposing (..)
+module Src.View exposing (..)
 
 -- Internal imports
-import Types exposing (..)
+import Src.Types exposing (..)
 
 -- External imports
 import Html.Attributes exposing (..)
@@ -14,13 +14,11 @@ import Matrix exposing (..)
 view : Model -> Svg Msg
 view model =
   let
-    def = model.definition
-    winds = model.winds
-    matrix = model.matrix
+    matrix = model.game.matrix
 
     content = List.append (visualizeModel model) [
       -- TODO: should be visualized inside visualizeModel
-      Svg.text_ [x "50", y "35", fontSize "35px"][Svg.text ("Score: " ++ toString model.topscore)]
+      Svg.text_ [x "50", y "35", fontSize "35px"][Svg.text ("Score: " ++ toString model.game.topscore)]
     ]
   in
     svg [ viewBox "0 0 1500 1500", Svg.Attributes.width "1000px" ] content 
@@ -31,7 +29,7 @@ view model =
 visualizeModel : Model -> List(Svg Msg)
 visualizeModel model  =
     let 
-      matrix = model.matrix
+      matrix = model.game.matrix
 
       superMatrix = 
           Matrix.mapWithLocation (visualizeElement model) matrix 
@@ -43,26 +41,26 @@ visualizeModel model  =
 visualizeElement : Model -> Location -> Element -> Svg msg
 visualizeElement model location element =
   let
-    definition = model.definition
-    winds = model.winds
-    milliticks = model.milliticks
+    dispConf = model.displayConfiguration
+    milliticks = model.time
 
     xloc = Tuple.first location
     yloc = Tuple.second location
 
     -- Distance between drawing points of 2 recangles
-    dist = definition.rectSize + definition.margin
+    dist = dispConf.rectSize + dispConf.margin
 
     staticShape = 
       Shape
-        {- x -} ((dist * xloc + definition.offsetX) |> toFloat)
-        {- y -} ((dist * yloc + definition.offsetY) |> toFloat)
-        {- width -} (definition.rectSize |> toFloat)
-        {- height -} (definition.rectSize |> toFloat)
-        {- rx -} (definition.radius |> toFloat)
-        {- ry -} (definition.radius |> toFloat)
+        {- x -} ((dist * xloc + dispConf.offsetX) |> toFloat)
+        {- y -} ((dist * yloc + dispConf.offsetY) |> toFloat)
+        {- width -} (dispConf.rectSize |> toFloat)
+        {- height -} (dispConf.rectSize |> toFloat)
+        {- rx -} (dispConf.radius |> toFloat)
+        {- ry -} (dispConf.radius |> toFloat)
     
-    shape = windShape model staticShape
+    -- TODO: DELETE: shape = windShape model staticShape
+    shape = staticShape
 
     -- Apples are animated
     innerSvg = case element of 
@@ -81,6 +79,7 @@ visualizeElement model location element =
     , Html.Attributes.style (styleOf element)
     ] innerSvg
 
+{- TODO: Delete this..
 windShape : Model -> Shape -> Shape
 windShape model shape = 
   let
@@ -103,6 +102,7 @@ windShape model shape =
     ( shape.height + ( amplitude / 2 ) * ( waveY ( shape.height + floaticks ) ) )
     ( shape.rx + 0 * ( waveX ( shape.rx + floaticks ) ) )
     ( shape.ry + 0 * ( waveY ( shape.ry + floaticks ) ) )
+-}
 
 -- Animations
 snakeAnimation : List (Svg msg)
@@ -140,16 +140,18 @@ appleAnimation =
 styleOf : Element -> List (String, String)
 styleOf element = 
     case element of
-        Types.VoidElement -> voidStyle
-        Types.SnakeElement display -> snakeStyle display
-        Types.AppleElement -> appleStyle
+        VoidElement -> voidStyle
+        SnakeElement display -> snakeStyle display
+        AppleElement -> appleStyle
+        -- TODO: reimplement
+        ShroomElement effect -> appleStyle 
 
 voidStyle : List (String, String)
 voidStyle = cellStyle "green"
 
 snakeStyle : SnakeDisplay -> List (String, String)
 snakeStyle display = 
-    if display == None
+    if display == Invisible
     then
         voidStyle
     else if display == Sick
