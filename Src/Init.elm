@@ -2,7 +2,7 @@ module Src.Init exposing (..)
 
 import Src.Types exposing (..)
 import Src.Api exposing (..)
-
+import Time exposing (..)
 import Matrix exposing (..)
 
 -- Init functions
@@ -56,6 +56,7 @@ initGameConfiguration : GameConfiguration
 initGameConfiguration = 
   { matrixLength = 12
   , cyclicmode = True
+  , tickDefinition = second / 3
   }
 
 initSnake : Int -> Int -> Snake 
@@ -85,9 +86,10 @@ reInit model =
           Just (Shroom location effect) -> 
             Matrix.set location (ShroomElement effect) tempModel.game.matrix
 
-      game = model.game
+      initializedGame = initGame model.gameConfiguration
+
       newGame = 
-        { game 
+        { initializedGame
         | matrix = newMatrix
         , food = mayfood
         , topscore = score

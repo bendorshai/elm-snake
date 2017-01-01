@@ -2,6 +2,7 @@ module Src.Types exposing (..)
 
 import Matrix exposing (..)
 import Time exposing (..)
+import Keyboard exposing (..)
 
 -- Types
 
@@ -28,7 +29,7 @@ type alias Effect =
     -- Altering the user's sence of time 
     , tickDefinition : Time 
     -- Each cells morphing data
-    , morphMatrix : Matrix MorphFunction
+    , morphMatrix : MorphFunction
     -- The time the effect will last 
     , lifespanMillitics : Time
     }
@@ -73,8 +74,11 @@ type alias GameConfiguration =
   -- Matrix length (width and height)
   { matrixLength : Int
   -- can bounce into wall?
-  , cyclicmode : Bool
+  , cyclicmode : CyclicMode
+  , tickDefinition : Time
   }
+
+type alias CyclicMode = Bool
 
 type alias Game = 
   { matrix : Matrix Element
@@ -94,8 +98,6 @@ type alias Model =
 
 type alias WaveFunction = Float -> Float
 
-type alias KeyCode = Int
-
-type alias ModelPredicate = (Model -> Bool)
+type alias GamePredicate = Game -> Bool
 
 type alias Direction = Matrix.Location

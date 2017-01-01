@@ -9,7 +9,6 @@ import Src.Api exposing (..)
 import Time exposing (..)
 import Matrix exposing (..)
 import Keyboard exposing (..)
-import Random exposing (..)
 import Array
 
 -- UPDATE
@@ -24,82 +23,102 @@ update msg model =
                 GameOver _ -> ( model, Cmd.none )
                 Play ->
                     let 
-                        snake = model.snake
-                        direction = keyCode |> keycodeToDirection snake.direction
-                        head = snakeHead snake
-                        throat = snakeThroat snake
-                        snakeInNewDirection = { snake | direction = direction}
+                      -- Semantics
+                      game = model.game
+                      snake = model.game.snake
+
+                      -- new direction, 
+                      direction = keyCode |> keycodeToDirection snake.direction
+                      throat = snakeThroat snake
+                      
+                      cyclicmode = model.gameConfiguration.cyclicmode
+                      snakeInNewDirection = { snake | direction = direction}
+                      newGame = 
+                        { game 
+                        | snake = snakeInNewDirection } 
                     in 
                         -- if not trying to go back to throat
-                        if (addDirection head direction) /= throat
+                        if (stepSnakeHead newGame cyclicmode) /= throat
                         then
-                            ( { model | snake = snakeInNewDirection}
+                            ( { model | game = newGame }
                             , Cmd.none 
                             )
                         else 
                             ( model, Cmd.none )
-        Tick time -> 
-                let
-                    {- Step the whole world a bit, recive a new model of the world,
-                        and a command that might affect the view or the model again... -}
-                    newModelNewCommand = step model
-                    newModel = Tuple.first newModelNewCommand
-                    newCommand = Tuple.second newModelNewCommand
-                in
-                    ( newModel, newCommand )
-        NewFood location -> 
-            ( { model
-              | apple = Just (Food location) }
-              , Cmd.none )
-        Millitick time ->
+        Tick time -> step model time
+        NewFood food ->
           let
-            newAmplitude = stepAmplitude model
-            newMilliticks = stepMillitick model
-            winds = model.winds
-            newWinds = { winds
-                       | amplitude = newAmplitude }
-
+            game = model.game
+            newGame = 
+             { game 
+             | food = Just food }
           in
+           ( { model
+             | game = newGame }
+           , Cmd.none
+           )
+        Frame time ->
           ( { model
-            | milliticks = newMilliticks}
+            | time = time}
             , Cmd.none )
 
 -- Steppers
 
-step : Model -> (Model, Cmd Msg)
-step model =
+step : Model -> Time -> (Model, Cmd Msg)
+step model time =
     let
-      newStatus = stepGameStatus model
+      game = model.game
+      cyclicmode = model.gameConfiguration.cyclicmode
+      newStatus = stepGameStatus game cyclicmode
     in
       case newStatus of 
         -- End of game over proccess
         GameOver 9 -> reInit model
         _ -> 
           let
-            newSnake = 
-              case newStatus of 
-                Play -> stepSnake model
-                GameOver n -> stepDeathSnake model
+            newSnake = stepSnake game cyclicmode newStatus 
 
             -- did snake just eat now?
-            ate = List.length model.snake.body < List.length newSnake.body
+            ate = List.length model.game.snake.body < List.length newSnake.body
 
             -- Remove the apple so snake will not eat it twice
-            apple = if ate then Nothing else model.apple
+            food = if ate then Nothing else model.game.food
 
-            newMatrix = stepMatrix model
-            newScore = stepScore model
+            newMatrix = stepMatrix game
+            newScore = stepScore game
+
+            newConf = stepGameConfiguration model ate
+
+            newGame = 
+              { game
+              | snake = newSnake
+              , food = food
+              , matrix = newMatrix
+              , topscore = newScore
+              , status = newStatus
+              }
           in
             ( { model 
-              | snake = newSnake
-              , matrix = newMatrix
-              , status = newStatus
-              , apple = apple 
-              , topscore = newScore 
+              | game = newGame
+              , gameConfiguration = newConf
               }
-            , stepCommand model ate
+            , stepCommand game ate
             )
 
+stepGameConfiguration : Model -> Bool -> GameConfiguration
+stepGameConfiguration model ate =   
+  let
+    currConf = model.gameConfiguration
+    tickDef = currConf.tickDefinition
+  in if tickDef > (80 * millisecond) && ate
+  then
+    { currConf
+    | tickDefinition = tickDef - 10 * millisecond
+    } 
+  else
+    currConf
+
+{- TODO: what to do
 stepAmplitude : Model -> Float
 stepAmplitude model = 
     let
@@ -117,51 +136,43 @@ stepAmplitude model =
     minMaxRange = ( ( zeroTwoRange / 2 ) * ( max-min ) ) + min
   in
     minMaxRange
+    -}
 
--- amplitude changes over time from min value to max value
-stepMillitick : Model -> Int
-stepMillitick model =
-  model.milliticks + 1
 
-stepDeathSnake : Model -> Snake
-stepDeathSnake model =
+stepDeadSnake : Game -> Snake
+stepDeadSnake game =
     let 
-        snakeDisplay = case model.status of
+        snakeDisplay = case game.status of
             -- should not happen 
             Play -> Regular
             GameOver n -> if n % 2 == 0 then Invisible else Sick
         
-        snake = model.snake
+        snake = game.snake
     in
         { snake 
         | display = snakeDisplay }
 
-stepScore : Model -> Score
-stepScore model = 
-  Basics.max (List.length model.snake.body) model.topscore
+stepScore : Game -> Score
+stepScore game = 
+  Basics.max (List.length game.snake.body) game.topscore
 
-stepCommand : Model -> Bool -> Cmd Msg
-stepCommand model ate = 
+stepCommand : Game -> Bool -> Cmd Msg
+stepCommand game ate = 
     if ate
     then
-        Cmd.batch 
-          [ commandRandomApple model.game.matrix
-          , Cmd.none
-          ]
+      commandRandomApple game.matrix
     else
-        Cmd.batch 
-          [ Cmd.none 
-          ]
+      Cmd.none 
     
-stepMatrix : Model -> Matrix Element
-stepMatrix model = 
-    Matrix.mapWithLocation (\loc elem -> locationToElement model loc) model.game.matrix 
+stepMatrix : Game -> Matrix Element
+stepMatrix game = 
+    Matrix.mapWithLocation (\loc elem -> locationToElement game loc) game.matrix 
 
-stepSnake : Model -> Snake
-stepSnake model =
+stepLivingSnake : Game -> CyclicMode -> Snake
+stepLivingSnake game cyclicmode =
     let 
         -- Sematix 
-        snake = model.snake
+        snake = game.snake
         body = snake.body
         length = List.length body
         
@@ -170,14 +181,15 @@ stepSnake model =
         exceptTail = List.take (length-1) body 
        
         -- new head and prev tail
-        newHead = stepSnakeHead model
+        newHead = stepSnakeHead game cyclicmode
         prevTail = List.drop (length-1) body 
                         |> List.head 
                         |> certainLocation
         
+        -- local new snake function
         newSnake : List Location -> Snake
         newSnake body = 
-            Snake body model.snake.direction prevTail Regular
+            Snake body game.snake.direction prevTail Regular
         
         -- next step potentials
         hungryNewBody = newHead :: exceptTail
@@ -186,7 +198,7 @@ stepSnake model =
         fullNewBody = List.append hungryNewBody [prevTail]
         fullNewSnake = newSnake fullNewBody
 
-        eating = isEating { model 
+        eating = isEating { game 
                           | snake = hungryNewSnake }
     in 
         if eating 
@@ -208,39 +220,34 @@ stepWinds model ate=
         | timeMultiplier = model.winds.timeMultiplier * multiplier }
         -}
 
-stepSnakeHead : Model -> Location
-stepSnakeHead model = 
+stepSnakeHead : Game -> CyclicMode -> Location
+stepSnakeHead game cyclicmode = 
   let
-    mayhead = (Array.fromList model.snake.body) |> Array.get 0 
+    snake = game.snake
+    head = snakeHead snake
     
-    head = case mayhead of 
-      Just location -> location
-      -- Exception
-      Nothing -> loc 0 0 
-    
-    naiveHead = addDirection head model.snake.direction
+    naiveHead = addDirection head snake.direction
     x = Tuple.first naiveHead
     y = Tuple.second naiveHead
 
     isInBoard = 
       x >= 0 &&
       y >= 0 &&
-      x < colCount model.game.matrix &&
-      y < rowCount model.game.matrix
-
+      x < colCount game.matrix &&
+      y < rowCount game.matrix
   in
     -- If the next naive step of snake will stay on board 
     -- or the game is not on cyclic mode, 
     -- return the naive step 
-    if not model.definition.cyclicmode ||
+    if not cyclicmode ||
        isInBoard
     then 
       naiveHead
     -- else, it is cyclic mode and out of board step
     else
       let
-        lengthx = colCount model.game.matrix
-        lengthy = rowCount model.game.matrix 
+        lengthx = colCount game.matrix
+        lengthy = rowCount game.matrix 
       in
         stepCoordinateCyclic naiveHead lengthx lengthy
 
@@ -255,25 +262,34 @@ stepCoordinateCyclic naiveHead lengthx lengthy =
   in 
     loc newX newY
 
-stepGameStatus : Model -> GameStatus
-stepGameStatus model = 
-    case model.status of
+-- TODO: combine stepSnake & stepGameStatus, to prevent moving snake twice to the future...
+
+-- TODO: each step accepts game and gameConfiguration, it makes more sense...
+
+stepSnake : Game -> CyclicMode -> GameStatus -> Snake
+stepSnake game cyclicmode newStatus = 
+  case newStatus of 
+    GameOver _ -> stepDeadSnake game
+    Play -> stepLivingSnake game cyclicmode
+
+stepGameStatus : Game -> CyclicMode -> GameStatus
+stepGameStatus game cyclicmode = 
+    case game.status of
         -- Step in the proccess of gameover
         GameOver n -> GameOver (n+1)
         Play ->
             let
               -- Is snake gonna eat itself? or be outside of the borders in this turn?
-              fictiveFuture = { model 
-                              | snake = stepSnake model }
+              fictiveFuture = { game 
+                              | snake = stepSnake game cyclicmode Play}
               
               predicatesToDie = 
-                cyclicmodeToDeathPredicates model.definition.cyclicmode
+                getDeathPredicates cyclicmode
               
-
               reasonsToDie = 
-                List.map (\predicate -> fictiveFuture |> predicate) predicatesToDie
-
-              shouldDie = List.any (\b -> b) reasonsToDie
+                List.map (\predicate -> predicate fictiveFuture) predicatesToDie
+              
+              shouldDie = List.any identity reasonsToDie
             in
               if shouldDie
               then 
@@ -281,8 +297,8 @@ stepGameStatus model =
               else
                   Play
 
-cyclicmodeToDeathPredicates : Bool -> List (Model -> Bool)
-cyclicmodeToDeathPredicates cyclicmode = 
+getDeathPredicates : CyclicMode -> List GamePredicate
+getDeathPredicates cyclicmode = 
   if cyclicmode
   then
     [ isEatingSelf ]
@@ -303,112 +319,17 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     let
       fps = 35
-      frameSpan = millisecond / fps
+      frameSpan = second / fps
+      effect = certainEffect model.gameConfiguration model.effect
     in 
       Sub.batch
           [ Keyboard.downs KeyDown
-          , every (second * model.winds.timeMultiplier) Tick
+          -- Effects changes the tick time, so snake moves faster or slower
+          , every effect.tickDefinition Tick
+          -- framespan is constant
           , every frameSpan Frame 
           ]
 
--- Conversions 
-
-certainLocation : Maybe Location -> Location
-certainLocation mayloc = 
-    case mayloc of
-        Just location -> location
-        Nothing -> loc 0 0
-
-keycodeToDirection :  Location -> KeyCode -> Location
-keycodeToDirection defaultDirection key = 
-    let 
-        w = 87
-        a = 65
-        s = 83
-        d = 68
-    in
-        if key == w then 
-            loc 0 -1
-        else if key == a then
-            loc -1 0
-        else if key == s then
-            loc 0 1
-        else if key == d then
-            loc 1 0 
-        else 
-            defaultDirection
-
-locationToElement : Model -> Location -> Element
-locationToElement model location = 
-    if List.member location model.snake.body
-    then 
-        SnakeElement model.snake.display
-    else if maybeFoodInLocaion model.game.food location
-    then 
-        AppleElement
-    else 
-        VoidElement
 
 -- Predicates
 
--- Note: better get the whole model, in the future there might be some apples
-isEating : ModelPredicate
-isEating model = 
-    let 
-        apple = model.apple
-        snake = model.snake
-    in
-        -- Poetic definition of is Eating:
-        maybeAppleLocationIn apple snake.body   
-
-isInBorders : ModelPredicate
-isInBorders model = 
-    let 
-        mayloc = Matrix.get 
-                    (snakeHead model.snake) 
-                    model.game.matrix
-    in case mayloc of 
-        Just location -> True
-        Nothing -> False 
-
-isEatingSelf : ModelPredicate
-isEatingSelf model = 
-    let 
-        body = model.snake.body
-
-        countLocation = 
-            countValueInList model.snake.body
-
-        countMap = List.map countLocation body
-        repeatedLocation = List.filter (\n -> n > 1) countMap
-    in
-        -- is there a location of snake that appears more then once?  
-        List.length repeatedLocation > 0
-
--- Snake api
-
-snakeHead : Snake -> Location
-snakeHead snake = 
-    List.head snake.body |> certainLocation
-
--- second cell
-snakeThroat : Snake -> Location
-snakeThroat snake = 
-    snake.body 
-        |> Array.fromList
-        |> Array.get 1
-        |> certainLocation
-
-
--- Utils
-
-addDirection : Location -> Direction -> Location
-addDirection location direction =
-    loc (Tuple.first location + Tuple.first direction) 
-        (Tuple.second location + Tuple.second direction)        
-
-countValueInList : List a -> a -> Int
-countValueInList list val = 
-        list
-        |> List.filter (\n -> n == val)
-        |> List.length

@@ -9,9 +9,9 @@ import Html exposing (program)
 
 main =
   Html.program
-    { init = Init.init
-    , view = View.view
-    , update = State.update
-    , subscriptions = State.subscriptions
+    { init = Src.Init.init
+    , view = Src.View.view
+    , update = Src.State.update
+    , subscriptions = Src.State.subscriptions
     }
 
